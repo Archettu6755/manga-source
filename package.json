@@ -1,0 +1,21 @@
+{
+  "name": "archettu-manga-source",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Personal manga sources for Suwatte and Venera",
+  "license": "MIT",
+  "engines": { "node": ">=22" },
+  "workspaces": ["packages/*", "sources/*"],
+  "scripts": {
+    "check": "npm run build -w @archettu/copymanga && npm run check --workspaces --if-present",
+    "test": "npm run build -w @archettu/copymanga && npm test --workspaces --if-present",
+    "build": "npm run build -w @archettu/copymanga && npm run build -w @archettu/suwatte-sources && node scripts/build-site.cjs",
+    "serve:suwatte": "npm run build -w @archettu/copymanga && npm run serve -w @archettu/suwatte-sources",
+    "smoke:suwatte": "npm run build -w @archettu/copymanga && npm run smoke -w @archettu/suwatte-sources"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "tsx": "^4.20.0",
+    "typescript": "^5.9.0"
+  }
+}
