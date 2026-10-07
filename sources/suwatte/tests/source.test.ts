@@ -126,14 +126,15 @@ test("login stores only the token in SecureStore and logout preserves the device
   const { source, calls } = fixture(call => call.url.endsWith("/login")
     ? { results: { token: "fixture-token" } }
     : { results: { list: [comic], total: 1, offset: 0 } });
-  await source.onFormSubmitted("settings", { api: "api.copy202601.com", username: "fixture-user", password: "密码&+", search: "app", logout: false });
+  await source.onFormSubmitted("settings", { api: "api.copy202601.com", username: "fixture+user", password: "密码&+", search: "app", logout: false });
   const secure = (globalThis as unknown as { SecureStore: STTStore }).SecureStore;
   assert.equal(await secure.string("copymanga.token"), "fixture-token");
   assert.equal(await ObjectStore.get("copymanga.token"), null);
   assert.equal(await ObjectStore.get("password"), null);
-  const body = calls[0].body as Record<string, string>;
-  assert.equal(body.username, "fixture-user");
-  assert.match(Buffer.from(body.password, "base64").toString("utf8"), /^密码&\+-\d{4}$/);
+  assert.equal(typeof calls[0].body, "string");
+  const body = new URLSearchParams(calls[0].body as string);
+  assert.equal(body.get("username"), "fixture+user");
+  assert.match(Buffer.from(body.get("password")!, "base64").toString("utf8"), /^密码&\+-\d{4}$/);
   await source.getSearchResults({ query: "测试" }, 1);
   assert.equal(calls[1].config?.headers?.authorization, "Token fixture-token");
   const device = await ObjectStore.object("copymanga.device");

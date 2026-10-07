@@ -92,7 +92,8 @@ export class CopyMangaApi {
   }
 
   async login(username: string, password: string): Promise<void> {
-    const body = loginBody(username, password, Math.floor(1_000 + Math.random() * 9_000));
+    const fields = loginBody(username, password, Math.floor(1_000 + Math.random() * 9_000));
+    const body = Object.entries(fields).map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(value)}`).join("&");
     const response = await this.client.post(`${await this.baseUrl()}/api/v3/login`, body, {
       headers: { ...await this.headers(false), "Content-Type": "application/x-www-form-urlencoded" },
     });
