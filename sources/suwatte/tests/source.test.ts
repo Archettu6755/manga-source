@@ -147,10 +147,10 @@ test("login stores only the token in SecureStore and logout preserves the device
 test("discovery cannot redirect a token to an unrelated host", async () => {
   const { source, calls } = fixture(call => call.url.includes("network2")
     ? { results: { api: [["api.example.com"]] } }
-    : { results: { list: [comic], total: 1, offset: 0 } });
+    : { results: { comic, groups: {} } });
   const secure = (globalThis as unknown as { SecureStore: STTStore }).SecureStore;
   await secure.set("copymanga.token", "fixture-token");
-  await source.getItemList({ key: "latest" }, 1);
+  await source.getContent("sample");
   assert.equal(calls[0].config?.headers?.authorization, "Token");
   assert.match(calls[1].url, /^https:\/\/api\.copy202601\.com\//);
   assert.equal(calls[1].config?.headers?.authorization, "Token fixture-token");

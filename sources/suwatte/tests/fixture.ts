@@ -3,7 +3,7 @@ import { wrapDelegateWithValidation } from "@suwatte/toolchain/validate";
 import type { Awaitable, Delegate, HttpRequest, HttpResponse, RequestConfig, SourceInfo } from "@suwatte/toolchain/types";
 
 export type Call = { url: string; config?: RequestConfig; body?: unknown };
-type Reply = { status?: number; body?: unknown; headers?: Record<string, string> };
+type Reply = { status?: number; body?: unknown; headers?: Record<string, string>; text?: string };
 export function fixture<T extends Delegate>(Source: { new(): T; info: SourceInfo }, handler: (call: Call) => Reply) {
   const calls: Call[] = [];
   class Client {
@@ -22,7 +22,7 @@ export function fixture<T extends Delegate>(Source: { new(): T; info: SourceInfo
       const call = { url: request.url, config: { ...config, headers: request.headers.toJSON() }, body };
       calls.push(call);
       const reply = handler(call);
-      let response = { status: reply.status ?? 200, json: async () => reply.body, headers: new HttpHeaders(reply.headers), request } as unknown as HttpResponse;
+      let response = { status: reply.status ?? 200, json: async () => reply.body, text: async () => reply.text ?? "", headers: new HttpHeaders(reply.headers), request } as unknown as HttpResponse;
       for (const hook of this.responseHooks) response = await hook(response);
       return response;
     }

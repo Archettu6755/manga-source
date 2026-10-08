@@ -1,6 +1,12 @@
 export const API = "https://api.mangadex.org";
 export const WEBSITE = "https://mangadex.org";
 export type Language = "en" | "ja";
+export const CURATED_LISTS = [
+  { id: "seasonal", title: "当季漫画", listId: "68ab4f4e-6f01-4898-9038-c5eee066be27" },
+  { id: "recommended", title: "官网推荐", listId: "805ba886-dd99-4aa4-b460-4bd7c7b71352" },
+  { id: "selfpublished", title: "自主出版", listId: "f66ebc10-ef89-46d1-be96-bb704559e04a" },
+];
+export interface MangaTag { id: string; attributes: { name: Record<string, string>; group: string } }
 export interface Relationship { id: string; type: string; attributes?: { fileName?: string; name?: string } }
 export interface Manga {
   id: string; relationships: Relationship[];

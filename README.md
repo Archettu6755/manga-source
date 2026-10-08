@@ -20,6 +20,8 @@ https://archettu6755.github.io/manga-source/suwatte/
 
 MangaDex 的原始语言筛选同时作用于列表、详情、目录和图片读取。英文翻译的韩漫与欧美原创漫画不会出现在这个源中。外站章节、未发布章节和不可用章节不列入目录。
 
+各源的公开漫画浏览入口与数据来源见 [入口清单](sources/suwatte/ENTRYPOINTS.md)。保留已发布的入口 ID；增补网站入口时同时检查分类、筛选与分页。
+
 ## 目录
 
 ```text
@@ -53,9 +55,14 @@ npm run serve:suwatte
 npm run smoke:suwatte
 npm run smoke:suwatte -- komiic
 npm run smoke:suwatte -- mangadex
+npm run smoke:browse -- copymanga
+npm run smoke:browse -- komiic
+npm run smoke:browse -- mangadex
 ```
 
 `serve` 命令供同一局域网中的 iPad 测试；`smoke` 使用官方模拟器访问真实接口，默认检查 CopyManga，也可选择 Komiic 或 MangaDex。它不登录账号，不保存漫画图片，遇到访问限制时报告失败阶段。Komiic 图片接口不支持 HEAD，检查时会 GET 一张图片，消耗一张图片额度。离线测试与构建通过不能替代设备上的阅读验证。
+
+`smoke:browse` 检查每个首页入口、分类导航、专题或作者的下一层列表及分页。只请求浏览元数据，不请求章节图片。
 
 修改源后提高该源的数字版本，再发布；保持源 ID 不变，避免书架记录失去关联。公共接口变更放入对应的 `packages/<站点>`，阅读器特有修改放入对应的 `sources/` 目录。
 

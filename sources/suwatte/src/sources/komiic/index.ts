@@ -2,9 +2,10 @@
 
 import {
   ContentRating, ContentStatus, ContentType, ReadingMode, UIPicker, UITextField, UIToggle,
+  ItemListDestination, PageSectionStyle, PickerFilter, SearchFilter,
   type Chapter, type ChapterPage, type Content, type Delegate, type HomePage, type Item,
   type ItemListRequest, type PagedItemList, type PopulatedForm, type SearchRequest,
-  type SourceInfo, type STTStore, type UIForm,
+  type SourceInfo, type STTStore, type UIForm, type ItemPageResponse, type SortOptions,
 } from "@suwatte/toolchain/types";
 import { COMIC_FIELDS, PAGE_SIZE, WEBSITE, imagePages, numericSerial, readData, requireComic, sessionCookies,
   type Comic, type ComicChapter } from "@archettu/komiic";
@@ -13,13 +14,15 @@ declare const SecureStore: STTStore;
 
 export default class Komiic implements Delegate {
   static info: SourceInfo = {
-    id: "zh.komiic", name: "Komiic · Archettu", version: 1, website: WEBSITE,
+    id: "zh.komiic", name: "Komiic · Archettu", version: 2, website: WEBSITE,
     languages: ["zh-Hant"], rating: ContentRating.UNKNOWN, minSupportedAppVersion: "7.0.0",
   };
   private readonly api = new HttpClient({ timeout: 20_000, retries: 0, maxRedirects: 0,
-    rateLimit: { permits: 1, period: 750 }, validateStatus: () => true });
+    rateLimit: { permits: 1, period: 0.75 }, validateStatus: () => true });
   readonly client = new HttpClient({ timeout: 20_000, retries: 0, maxRedirects: 0, validateStatus: () => true });
   private refreshing?: Promise<void>;
+  private categoriesCache?: { id: string; name: string; group: string; comicCount: number }[];
+  private elementsCache?: { id: string; name: string; type: string; comicCount: number }[];
 
   constructor() {
     this.client.interceptors.request.use(async request => {
@@ -45,7 +48,57 @@ export default class Komiic implements Delegate {
     return { feeds: [
       { id: "latest", title: "最近更新", content: { list: { key: "latest" } } },
       { id: "popular", title: "热门漫画", content: { list: { key: "popular" } } },
+      { id: "all", title: "所有漫画", content: { list: { key: "all" } } },
+      { id: "newest", title: "最近上架", content: { list: { key: "newest" } } },
+      { id: "completed", title: "已完结", content: { list: { key: "completed" } } },
+      { id: "short", title: "短篇", content: { list: { key: "short" } } },
+      { id: "categories", title: "题材分类", content: { page: "categories" } },
+      { id: "elements", title: "标签", content: { page: "elements" } },
+      { id: "authors", title: "作者列表", content: { list: { key: "authors", disableSorting: true } } },
+      { id: "originals", title: "原作", content: { list: { key: "originals", disableSorting: true } } },
+      { id: "characters", title: "角色", content: { list: { key: "characters", disableSorting: true } } },
+      { id: "recommended-week", title: "本周推荐", content: { list: { key: "recommended-week" } } },
+      { id: "recommended-month", title: "本月推荐", content: { list: { key: "recommended-month" } } },
+      { id: "recommended-year", title: "年度推荐", content: { list: { key: "recommended-year" } } },
+      { id: "random", title: "随机发现", content: { list: { key: "random", disableSorting: true } } },
     ] };
+  }
+  async getSortOptions(): Promise<SortOptions> {
+    return { options: [{ id: "DATE_UPDATED", title: "更新时间" }, { id: "DATE_CREATED", title: "上架时间" },
+      { id: "VIEWS", title: "总观看数" }, { id: "MONTH_VIEWS", title: "本月观看数" }, { id: "FAVORITE_COUNT", title: "喜爱数" }] };
+  }
+  private async categories() {
+    if (!this.categoriesCache) {
+      const data = await this.query<{ allCategory: NonNullable<Komiic["categoriesCache"]> }>("allCategory", "query allCategory { allCategory { id name group comicCount } }", {});
+      if (!Array.isArray(data.allCategory)) throw new Error("Komiic 分类格式已变化。");
+      this.categoriesCache = data.allCategory;
+    }
+    return this.categoriesCache;
+  }
+  private async elements() {
+    if (!this.elementsCache) {
+      const data = await this.query<{ allElements: NonNullable<Komiic["elementsCache"]> }>("allElements", "query allElements { allElements { id name type comicCount } }", {});
+      if (!Array.isArray(data.allElements)) throw new Error("Komiic 标签格式已变化。");
+      this.elementsCache = data.allElements;
+    }
+    return this.elementsCache;
+  }
+  async getSearchFilters(): Promise<SearchFilter[]> {
+    return [SearchFilter("category", "题材", PickerFilter([{ id: "all", title: "全部" }, ...(await this.categories()).map(category => ({ id: category.id, title: category.name }))])),
+      SearchFilter("status", "状态", PickerFilter([{ id: "all", title: "全部" }, { id: "ONGOING", title: "连载" }, { id: "END", title: "完结" }, { id: "SHORT", title: "短篇" }]))];
+  }
+  async getItemPage(key: string, page: number): Promise<ItemPageResponse> {
+    if (page > 1) return { sections: [], isLastPage: true };
+    if (key !== "categories" && key !== "elements") throw new Error("Komiic 不支持该浏览入口。");
+    const entries = key === "categories" ? await this.categories() : await this.elements();
+    const groups = new Map<string, (typeof entries)[number][]>();
+    for (const entry of entries) {
+      const group = "group" in entry ? entry.group : entry.type;
+      groups.set(group, [...(groups.get(group) ?? []), entry]);
+    }
+    return { sections: [...groups].map(([group, entries]) => ({ id: group || key, title: group || (key === "categories" ? "全部题材" : "全部标签"), style: PageSectionStyle.TAG_GRID,
+      items: entries.map(entry => ({ id: `${key}:${entry.id}`, title: entry.name, subtitle: `${entry.comicCount} 部`, rating: ContentRating.UNKNOWN,
+        destination: ItemListDestination({ key: `${key}:${entry.id}` }, entry.name) })) })), isLastPage: true };
   }
   private async headers(): Promise<Record<string, string>> {
     const cookies = await SecureStore.string("komiic.cookies");
@@ -92,15 +145,17 @@ export default class Komiic implements Delegate {
   }
   async getItemList(request: ItemListRequest, page: number): Promise<PagedItemList> {
     if (!Number.isInteger(page) || page < 1) throw new Error("页码必须从 1 开始。");
+    const key = request.key ?? "all";
+    if (key !== "latest" && key !== "popular") return this.browse(key, page, request.sort);
     const popular = request.key === "popular";
     const data = await this.query<{ comics: Comic[] }>("commonQuery",
       `query commonQuery($pagination: Pagination!) { comics: ${popular ? "hotComics" : "recentUpdate"}(pagination: $pagination) { ${COMIC_FIELDS} } }`,
-      { pagination: { limit: PAGE_SIZE, offset: (page - 1) * PAGE_SIZE, orderBy: popular ? "MONTH_VIEWS" : "DATE_UPDATED", status: "", asc: false } });
+      { pagination: { limit: PAGE_SIZE, offset: (page - 1) * PAGE_SIZE, orderBy: request.sort?.key ?? (popular ? "MONTH_VIEWS" : "DATE_UPDATED"), status: "", asc: request.sort?.ascending ?? false } });
     if (!Array.isArray(data.comics)) throw new Error("Komiic 列表格式已变化。");
     return { items: data.comics.map(comic => this.item(comic)), isLastPage: data.comics.length < PAGE_SIZE };
   }
   async getSearchResults(request: SearchRequest, page: number): Promise<PagedItemList> {
-    if (!request.query?.trim()) return this.getItemList({ key: "latest" }, page);
+    if (!request.query?.trim()) return this.browse("all", page, request.sort, request.filters);
     if (!Number.isInteger(page) || page < 1) throw new Error("页码必须从 1 开始。");
     const data = await this.query<{ searchComicsAndAuthors: { comics: Comic[] } }>("searchComicsAndAuthors",
       `query searchComicsAndAuthors($keyword: String!) { searchComicsAndAuthors(keyword: $keyword) { comics { ${COMIC_FIELDS} } } }`,
@@ -109,6 +164,66 @@ export default class Komiic implements Delegate {
     if (!Array.isArray(comics)) throw new Error("Komiic 搜索格式已变化。");
     return { items: comics.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE).map(comic => this.item(comic)),
       total: comics.length, isLastPage: page * PAGE_SIZE >= comics.length };
+  }
+  private async browse(key: string, page: number, sort?: SearchRequest["sort"], filters?: SearchRequest["filters"]): Promise<PagedItemList> {
+    if (!Number.isInteger(page) || page < 1) throw new Error("页码必须从 1 开始。");
+    const orderBy = sort?.key ?? (key === "newest" ? "DATE_CREATED" : "DATE_UPDATED");
+    if (!(await this.getSortOptions()).options.some(option => option.id === orderBy)) throw new Error("不支持的漫画排序。");
+    const status = key === "completed" ? "END" : key === "short" ? "SHORT" : filters?.status === "all" ? "" : filters?.status ?? "";
+    if (typeof status !== "string" || !["", "ONGOING", "END", "SHORT"].includes(status)) throw new Error("不支持的连载状态。");
+    const pagination = { limit: PAGE_SIZE, offset: (page - 1) * PAGE_SIZE, orderBy, status, asc: sort?.ascending ?? false };
+    if (key === "authors" || key === "originals" || key === "characters") {
+      const authors = key === "authors";
+      const field = authors ? "authors" : key === "originals" ? "hOriginalComics" : "hCharacters";
+      const fields = authors ? "id name comicCount" : key === "originals" ? "id name coverUrl comicCount" : "id name nameZhTw comicCount";
+      const data = await this.query<{ entries: { id: string; name: string; nameZhTw?: string; coverUrl?: string; comicCount: number }[] }>("browseEntries",
+        `query browseEntries($pagination: Pagination!, $contentType: ContentType!) { entries: ${field}(pagination: $pagination, contentType: $contentType) { ${fields} } }`,
+        { pagination: { ...pagination, orderBy: "VIEWS" }, contentType: "REGULAR" });
+      if (!Array.isArray(data.entries)) throw new Error("Komiic 浏览列表格式已变化。");
+      const prefix = authors ? "author" : key === "originals" ? "original" : "character";
+      return { items: data.entries.map(entry => ({ id: `${prefix}:${entry.id}`, title: entry.nameZhTw || entry.name,
+        coverImage: entry.coverUrl, subtitle: `${entry.comicCount} 部`, rating: ContentRating.UNKNOWN,
+        destination: ItemListDestination({ key: `${prefix}:${entry.id}` }, entry.nameZhTw || entry.name) })), isLastPage: data.entries.length < PAGE_SIZE };
+    }
+    if (key.startsWith("author:")) {
+      const data = await this.query<{ comics: Comic[] }>("comicsByAuthor",
+        `query comicsByAuthor($authorId: ID!) { comics: getComicsByAuthor(authorId: $authorId) { ${COMIC_FIELDS} } }`, { authorId: key.slice(7) });
+      return this.comicList(data.comics, page, true);
+    }
+    if (key.startsWith("original:") || key.startsWith("character:")) {
+      const original = key.startsWith("original:");
+      const field = original ? "comicsByHOriginalComicId" : "comicsByHCharacterId";
+      const argument = original ? "originalComicId" : "characterId";
+      const data = await this.query<{ comics: { id: string }[] }>("comicsByReference",
+        `query comicsByReference($referenceId: ID!, $contentType: ContentType!, $pagination: Pagination!) { comics: ${field}(${argument}: $referenceId, contentType: $contentType, pagination: $pagination) { id } }`,
+        { referenceId: key.slice(key.indexOf(":") + 1), contentType: "REGULAR", pagination });
+      if (!Array.isArray(data.comics)) throw new Error("Komiic 原作或角色漫画列表格式已变化。");
+      if (!data.comics.length) return { items: [], isLastPage: true };
+      const details = await this.query<{ comics: Comic[] }>("comicByIds", `query comicByIds($comicIds: [ID]!) { comics: comicByIds(comicIds: $comicIds) { ${COMIC_FIELDS} } }`, { comicIds: data.comics.map(comic => comic.id) });
+      const lookup = new Map(details.comics.map(comic => [comic.id, comic]));
+      const comics = data.comics.map(comic => { const value = lookup.get(comic.id); if (!value) throw new Error("Komiic 未返回完整的原作或角色漫画信息。"); return value; });
+      return this.comicList(comics, page);
+    }
+    let field = "comicByCategories";
+    let declaration = "$ids: [ID!]!, $pagination: Pagination!";
+    let argumentsText = "categoryId: $ids, pagination: $pagination";
+    let variables: Record<string, unknown> = { pagination, ids: key.startsWith("categories:") ? [key.slice(11)] : filters?.category && filters.category !== "all" ? [filters.category] : [] };
+    if (key.startsWith("elements:")) { field = "comicByElements"; argumentsText = "elementIds: $ids, pagination: $pagination"; variables.ids = [key.slice(9)]; }
+    else if (["recommended-week", "recommended-month", "recommended-year"].includes(key)) {
+      field = "topRecommendedComics"; declaration = "$period: RecommendationPeriod!, $pagination: Pagination!, $contentType: ContentType";
+      argumentsText = "period: $period, pagination: $pagination, contentType: $contentType";
+      variables = { pagination, period: key === "recommended-week" ? "WEEK" : key === "recommended-month" ? "MONTH" : "YEAR", contentType: "REGULAR" };
+    } else if (key === "random") {
+      field = "randomComics"; declaration = "$pagination: Pagination!, $contentType: ContentType";
+      argumentsText = "pagination: $pagination, contentType: $contentType"; variables = { pagination, contentType: "REGULAR" };
+    } else if (!["all", "newest", "completed", "short"].includes(key) && !key.startsWith("categories:")) throw new Error("Komiic 不支持该列表入口。");
+    const data = await this.query<{ comics: Comic[] }>("browseComics", `query browseComics(${declaration}) { comics: ${field}(${argumentsText}) { ${COMIC_FIELDS} } }`, variables);
+    return this.comicList(data.comics, page);
+  }
+  private comicList(comics: Comic[], page: number, complete = false): PagedItemList {
+    if (!Array.isArray(comics)) throw new Error("Komiic 漫画列表格式已变化。");
+    return { items: (complete ? comics.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE) : comics).map(comic => this.item(comic)),
+      total: complete ? comics.length : undefined, isLastPage: complete ? page * PAGE_SIZE >= comics.length : comics.length < PAGE_SIZE };
   }
   async getContent(contentId: string): Promise<Content> {
     const data = await this.query<{ comicById: Comic }>("mangaQuery",

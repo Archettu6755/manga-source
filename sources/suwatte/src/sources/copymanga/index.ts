@@ -1,22 +1,24 @@
 "use httpclient";
 
 import {
-  ContentRating, ContentStatus, ContentType, ReadingMode, UIPicker, UITextField, UIToggle,
+  ContentRating, ContentStatus, ContentType, ReadingMode, UIPicker, UITextField, UIToggle, PageSectionStyle, PickerFilter, SearchFilter, ItemListDestination,
   type Chapter, type ChapterPage, type Content, type Delegate, type HomePage,
   type Item, type ItemListRequest, type PagedItemList, type PopulatedForm,
-  type SearchRequest, type SourceInfo, type UIForm,
+  type SearchRequest, type SourceInfo, type UIForm, type ItemPageResponse, type SortOptions,
 } from "@suwatte/toolchain/types";
 import { CopyMangaApi } from "./api";
 import {
   CHAPTER_PAGE_SIZE, PAGE_SIZE, WEBSITE, chapterNumber, imageHeaders, normalizeApi, orderedPages,
   readList, requireComic, type ApiChapter, type ApiList, type ApiPages, type Comic, type Details,
+  WEB_PAGE_SIZE, RECOMMEND_PAGE_SIZE, TOPIC_PAGE_SIZE, RANK_PERIODS, REGIONS, STATUSES,
+  parseComicList, parseCardList, parseHome, parseThemes, parseTopics, type Topic, type BrowseTheme,
 } from "@archettu/copymanga";
 
 export default class CopyManga implements Delegate {
   static info: SourceInfo = {
     id: "zh.copymanga",
     name: "拷贝漫画 · Archettu",
-    version: 2,
+    version: 3,
     website: WEBSITE,
     languages: ["zh-Hans", "zh-Hant"],
     rating: ContentRating.UNKNOWN,
@@ -26,6 +28,7 @@ export default class CopyManga implements Delegate {
   private readonly api = new CopyMangaApi();
   readonly client = new HttpClient({ timeout: 20_000, retries: 0 });
   private lastDetails?: { id: string; at: number; value: Details };
+  private cachedThemes?: { at: number; value: BrowseTheme[] };
 
   constructor() {
     this.client.interceptors.request.use(request => {
@@ -40,9 +43,58 @@ export default class CopyManga implements Delegate {
 
   async getHomePage(): Promise<HomePage> {
     return { feeds: [
+      { id: "home", title: "首页推荐", content: { page: "home" } },
+      { id: "all", title: "发现／全部漫画", content: { list: { key: "all" } } },
+      { id: "topics", title: "专题", content: { list: { key: "topics", disableSorting: true } } },
+      { id: "themes", title: "题材", content: { page: "themes" } },
+      { id: "ranks", title: "排行榜", content: { page: "ranks" } },
+      { id: "recommend", title: "漫画推荐", content: { list: { key: "recommend", disableSorting: true } } },
+      { id: "newest", title: "全新上架", content: { list: { key: "newest", disableSorting: true } } },
       { id: "latest", title: "最近更新", content: { list: { key: "latest" } } },
       { id: "popular", title: "热门漫画", content: { list: { key: "popular" } } },
+      { id: "completed", title: "已完结", content: { list: { key: "completed" } } },
     ] };
+  }
+
+  async getSortOptions(): Promise<SortOptions> {
+    return { options: [{ id: "datetime_updated", title: "更新时间" }, { id: "popular", title: "热度" }] };
+  }
+
+  private async themes(): Promise<BrowseTheme[]> {
+    if (this.cachedThemes && Date.now() - this.cachedThemes.at < 3_600_000) return this.cachedThemes.value;
+    const value = parseThemes(await this.api.web("/filter"));
+    this.cachedThemes = { at: Date.now(), value };
+    return value;
+  }
+
+  async getSearchFilters(): Promise<SearchFilter[]> {
+    return [SearchFilter("theme", "题材", PickerFilter([{ id: "all", title: "全部" }, ...(await this.themes()).map(tag => ({ id: tag.path_word, title: tag.name }))])),
+      SearchFilter("region", "地区", PickerFilter(REGIONS.map(option => ({ ...option, id: option.id || "all" })))),
+      SearchFilter("status", "状态", PickerFilter(STATUSES.map(option => ({ ...option, id: option.id || "all" }))))];
+  }
+
+  private topicItem(topic: Topic): Item {
+    return { id: `topic:${topic.id}`, title: topic.title, coverImage: topic.cover, subtitle: topic.summary,
+      rating: ContentRating.UNKNOWN, destination: ItemListDestination({ key: `topic:${topic.id}`, disableSorting: true }, topic.title) };
+  }
+
+  async getItemPage(key: string, page: number): Promise<ItemPageResponse> {
+    if (page !== 1) return { sections: [], isLastPage: true };
+    if (key === "home") {
+      const sections = parseHome(await this.api.web("/"));
+      return { sections: sections.map(section => ({ id: section.id, title: section.title,
+        style: section.id === "banners" ? PageSectionStyle.BANNER : PageSectionStyle.DEFAULT,
+        items: section.topics ? section.topics.map(topic => this.topicItem(topic)) : section.comics.map(comic => this.item(comic)),
+        destination: section.list ? ItemListDestination({ key: section.list, disableSorting: ["recommend", "newest", "topics"].includes(section.list) }, section.title) : undefined })), isLastPage: true };
+    }
+    if (key === "themes") return { sections: [{ id: "themes", title: "全部题材", style: PageSectionStyle.TAG_GRID,
+      items: (await this.themes()).map(theme => ({ id: `theme:${theme.path_word}`, title: theme.name, subtitle: `${theme.count} 部`, rating: ContentRating.UNKNOWN,
+        destination: ItemListDestination({ key: `theme:${theme.path_word}` }, theme.name) })) }], isLastPage: true };
+    if (key === "ranks") return { sections: [{ id: "male", title: "男频" }, { id: "female", title: "女频" }].map(channel => ({
+      id: channel.id, title: channel.title, style: PageSectionStyle.TAG_GRID,
+      items: RANK_PERIODS.map(period => ({ id: `rank:${channel.id}:${period.id}`, title: period.title, rating: ContentRating.UNKNOWN,
+        destination: ItemListDestination({ key: `rank:${channel.id}:${period.id}`, disableSorting: true }, `${channel.title} · ${period.title}`) })) })), isLastPage: true };
+    throw new Error("CopyManga 不支持该浏览入口，请刷新源列表。");
   }
 
   private item(comic: Comic): Item {
@@ -63,7 +115,7 @@ export default class CopyManga implements Delegate {
 
   async getSearchResults(request: SearchRequest, page: number): Promise<PagedItemList> {
     const query = request.query?.trim();
-    if (!query) return this.getItemList({ key: "latest" }, page);
+    if (!query) return this.browse(request, page);
     const params = { q: query, q_type: "", limit: PAGE_SIZE, offset: (page - 1) * PAGE_SIZE };
     const data = await ObjectStore.string("copymanga.search") === "app"
       ? await this.api.get<ApiList<Comic>>("search/comic", params)
@@ -72,11 +124,54 @@ export default class CopyManga implements Delegate {
   }
 
   async getItemList(request: ItemListRequest, page: number): Promise<PagedItemList> {
-    const data = await this.api.get<ApiList<Comic>>("comics", {
-      ordering: request.key === "popular" ? "-popular" : "-datetime_updated",
-      limit: PAGE_SIZE, offset: (page - 1) * PAGE_SIZE,
-    });
-    return this.paged(data, page);
+    if (!Number.isInteger(page) || page < 1) throw new Error("页码必须从 1 开始。");
+    const key = request.key ?? "all";
+    if (key === "all" || key === "completed" || key.startsWith("theme:")) return this.browse({ sort: request.sort,
+      filters: { theme: key.startsWith("theme:") ? key.slice(6) : "", status: key === "completed" ? "1" : "" } }, page);
+    if (key === "topics") {
+      const result = parseTopics(await this.api.web("/topic", { limit: TOPIC_PAGE_SIZE, offset: (page - 1) * TOPIC_PAGE_SIZE }), (page - 1) * TOPIC_PAGE_SIZE);
+      return { items: result.list.map(topic => this.topicItem(topic)), isLastPage: result.isLastPage };
+    }
+    if (key.startsWith("topic:")) {
+      if (page > 1) return { items: [], isLastPage: true };
+      const result = parseCardList(await this.api.web(`/topic/${encodeURIComponent(key.slice(6))}`), 0, 1);
+      return { items: result.list.map(comic => this.item(comic)), isLastPage: true };
+    }
+    if (key === "recommend" || key === "newest") {
+      const offset = (page - 1) * RECOMMEND_PAGE_SIZE;
+      const result = parseCardList(await this.api.web(`/${key}`, { limit: RECOMMEND_PAGE_SIZE, offset }), offset, RECOMMEND_PAGE_SIZE);
+      return { items: result.list.map(comic => this.item(comic)), isLastPage: result.isLastPage };
+    }
+    if (key.startsWith("rank:")) {
+      if (page > 1) return { items: [], isLastPage: true };
+      const parts = key.split(":");
+      const channel = parts[1];
+      const period = parts[2];
+      if (parts.length !== 3 || !["male", "female"].includes(channel) || !RANK_PERIODS.some(value => value.id === period)) throw new Error("不支持的排行榜频道或周期。");
+      const result = parseCardList(await this.api.web("/rank", { type: channel, table: period }), 0, 50);
+      return { items: result.list.map(comic => this.item(comic)), isLastPage: true };
+    }
+    if (key !== "latest" && key !== "popular") throw new Error("CopyManga 不支持该列表入口，请刷新源列表。");
+    return this.browse({ sort: request.sort ?? { key: key === "popular" ? "popular" : "datetime_updated" } }, page);
+  }
+
+  private ordering(sort?: SearchRequest["sort"]): string {
+    const key = sort?.key ?? "datetime_updated";
+    if (key !== "datetime_updated" && key !== "popular") throw new Error("不支持的漫画排序。");
+    return `${sort?.ascending ? "" : "-"}${key}`;
+  }
+
+  private async browse(request: SearchRequest, page: number): Promise<PagedItemList> {
+    if (!Number.isInteger(page) || page < 1) throw new Error("页码必须从 1 开始。");
+    const params: Record<string, string | number> = { ordering: this.ordering(request.sort), limit: WEB_PAGE_SIZE, offset: (page - 1) * WEB_PAGE_SIZE };
+    for (const key of ["theme", "region", "status"] as const) {
+      const value = request.filters?.[key];
+      if (value !== undefined && typeof value !== "string") throw new Error("筛选项格式不正确。");
+      if (key === "theme" && typeof value === "string" && value.startsWith("empty:")) return { items: [], total: 0, isLastPage: true };
+      if (value && value !== "all") params[key] = value;
+    }
+    const data = readList(parseComicList(await this.api.web("/comics", params), Number(params.offset)));
+    return { items: data.list.map(comic => this.item(comic)), total: data.total, isLastPage: !data.list.length || data.offset + data.list.length >= data.total };
   }
 
   private async details(id: string): Promise<Details> {

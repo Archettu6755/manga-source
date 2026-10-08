@@ -14,6 +14,13 @@ const artifact = path.join("dist", "sources", `${info.path}.stt`);
 const notices = [
   ["CryptoJS", path.join(path.dirname(require.resolve("crypto-js")), "LICENSE")],
   ["Suwatte Toolchain", path.join(path.dirname(require.resolve("@suwatte/toolchain")), "..", "LICENSE")],
+  ...["cheerio", "cheerio-select", "htmlparser2", "domhandler", "domutils", "dom-serializer", "domelementtype", "entities", "css-select", "css-what", "boolbase", "nth-check", "json5"].map(name => {
+    if (name === "boolbase") return [name, path.join("scripts", "licenses", "boolbase.txt")];
+    const directory = path.join("..", "..", "node_modules", name);
+    const license = fs.readdirSync(directory).find(file => /^license(?:\.md|\.txt)?$/i.test(file));
+    assert.ok(license, `${name} license`);
+    return [name, path.join(directory, license)];
+  }),
 ].map(([name, file]) => `${name}\n${fs.readFileSync(file, "utf8")}`).join("\n\n");
 for (const source of catalog.sources) {
   assert.equal(source.environment, "jsc");
@@ -35,6 +42,9 @@ const store = {
 class Client {
   interceptors = { request: { use() {} } };
   async get(url, config) {
+    if (url.includes("/comics") && url.startsWith("https://www.mangacopy.com/")) {
+      return { status: 200, text: async () => '<main><div class="exemptComic-box" total="1" list="[{&quot;path_word&quot;:&quot;fixture&quot;,&quot;name&quot;:&quot;Fixture&quot;,&quot;cover&quot;:&quot;https://images.example/cover.jpg&quot;}]"></div></main>' };
+    }
     const timestamp = config.headers["x-auth-timestamp"];
     const expected = createHmac("sha256", Buffer.from("M2FmMDg1OTAzMTEwMzJlZmUwNjYwNTUwYTA1NjNhNTM=", "base64"))
       .update(timestamp).digest("hex");
@@ -57,6 +67,7 @@ async function verifyRuntime() {
   assert.equal(content.title, "Fixture");
   const pages = await source.getChapterPages("fixture", "chapter");
   assert.deepEqual(Array.from(pages, page => page.url), ["https://images.example/1.webp", "https://images.example/2.webp"]);
+  assert.equal((await source.getItemList({ key: "all" }, 1)).items[0].title, "Fixture");
   console.log(`Verified ${artifact} (${Buffer.byteLength(script)} bytes), catalog, JSC signing and page ordering.`);
   for (const id of ["zh.komiic", "en.mangadex"]) {
     const metadata = catalog.sources.find(entry => entry.id === id);

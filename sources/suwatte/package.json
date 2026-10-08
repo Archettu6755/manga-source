@@ -10,7 +10,8 @@
     "test": "tsx --test tests/*.test.ts",
     "build": "suwatte build && node scripts/check-artifacts.cjs",
     "serve": "suwatte serve",
-    "smoke": "tsx scripts/smoke.ts"
+    "smoke": "tsx scripts/smoke.ts",
+    "smoke:browse": "tsx scripts/smoke-browse.ts"
   },
   "suwatte": { "listName": "Archettu 的漫画源" },
   "dependencies": { "@archettu/copymanga": "0.1.0", "@archettu/komiic": "0.1.0", "@archettu/mangadex": "0.1.0" },

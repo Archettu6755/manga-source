@@ -14,7 +14,7 @@ export class CopyMangaApi {
     this.client = new HttpClient({
       timeout: 20_000,
       retries: 0,
-      rateLimit: { permits: 1, period: 1_500 },
+      rateLimit: { permits: 1, period: 1.5 },
       validateStatus: () => true,
     });
   }
@@ -89,6 +89,13 @@ export class CopyMangaApi {
     else throw new Error("CopyManga 搜索页返回了无法识别的接口地址。");
     const response = await this.client.get(url, { headers, params: { q: query, q_type: "", platform: 2, limit, offset } });
     return readResults<T>(response.status, await response.json());
+  }
+
+  async web(path: string, params: Record<string, Primitive> = {}): Promise<string> {
+    const response = await this.client.get(`${WEBSITE}${path}`, { params, headers: { Referer: `${WEBSITE}/`,
+      "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 Version/18.5 Safari/605.1.15" } });
+    if (response.status !== 200) throw new Error(`CopyManga 浏览页面暂时无法访问（HTTP ${response.status}）。`);
+    return response.text();
   }
 
   async login(username: string, password: string): Promise<void> {

@@ -12,7 +12,8 @@
     "test": "npm run build:protocols && npm test --workspaces --if-present",
     "build": "npm run build:protocols && npm run build -w @archettu/suwatte-sources && node scripts/build-site.cjs",
     "serve:suwatte": "npm run build:protocols && npm run serve -w @archettu/suwatte-sources",
-    "smoke:suwatte": "npm run build:protocols && npm run smoke -w @archettu/suwatte-sources --"
+    "smoke:suwatte": "npm run build:protocols && npm run smoke -w @archettu/suwatte-sources --",
+    "smoke:browse": "npm run build:protocols && npm run smoke:browse -w @archettu/suwatte-sources --"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
