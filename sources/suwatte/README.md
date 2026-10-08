@@ -1,12 +1,12 @@
 # Archettu 的 Suwatte 漫画源
 
-供 iPad 和 iPhone 上的 Suwatte 使用，首个源是拷贝漫画 CopyManga。仓库保存适配代码和订阅目录；漫画图片由阅读器直接请求 CopyManga。
+供 iPad 和 iPhone 上的 Suwatte 使用，提供 CopyManga、Komiic 和 MangaDex。仓库保存适配代码和订阅目录；漫画图片由阅读器直接请求各站点。
 
 ## 安装
 
 本项目使用官方 `@suwatte/toolchain`，当前源要求 Suwatte 7.0.0 或更新版本。
 
-在 Suwatte 的设置中打开 Sources，添加以下源列表地址，再安装「拷贝漫画 · Archettu」：
+在 Suwatte 的设置中打开 Sources，添加以下源列表地址，再选择要安装的源。已添加过此地址时，刷新源列表即可看到新源：
 
 ```text
 https://archettu6755.github.io/manga-source/suwatte/
@@ -14,7 +14,7 @@ https://archettu6755.github.io/manga-source/suwatte/
 
 目录文件位于 `sources.json`。发布页由 GitHub Pages 提供，推送到 `main` 后自动构建和更新。
 
-## 首版功能
+## CopyManga
 
 - 网页搜索与 App 搜索，最近更新和热门列表。
 - 漫画详情、作者、题材和状态。
@@ -24,11 +24,25 @@ https://archettu6755.github.io/manga-source/suwatte/
 
 源设置中的 API 地址留空时使用自动获取；搜索默认使用网页接口。账号和密码填写后提交即可登录，勾选「退出登录」后提交可移除令牌。
 
+## Komiic
+
+提供繁体中文搜索、热门与更新列表、详情、卷与章节目录、图片读取。默认同时显示卷和章节，可在源设置中改为仅章节或仅卷；它们可能是同一作品的不同版本。
+
+账号登录使用邮箱和密码。密码只用于当前登录请求，登录 Cookie 和旧接口可能返回的令牌存入 SecureStore。会话会通过站点的 `/auth/refresh` 刷新；刷新失败时提示重新登录。勾选「退出登录」后提交可退出账号。图片请求携带该章节的 Referer，会话凭据仅发送至 `komiic.com` 的图片接口，不发送给封面 CDN。
+
+图片额度由网站决定。HTTP 402 会提示当日额度用尽并停止读取。账号登录能否提高额度取决于网站的账号规则，源不会自行重置额度。
+
+## MangaDex
+
+只收录原始语言为日语的日本漫画，默认获取英文译文，可在源设置中选择日语原文。列表、详情、章节目录与图片请求都会检查语言；英文翻译的韩漫和欧美原创作品不会被当作日漫提供。修改语言后请刷新章节目录。
+
+基础读取无需登录。支持搜索、热门与更新列表、作者和题材、完整章节分页，以及正常质量或节省流量的图片。目录保留不同翻译组上传的章节，标题附带翻译组名称。外站章节、空章节、未发布章节与已标记不可用的章节不显示。站点撤下的内容无法通过源恢复。
+
 ## 访问限制
 
 CopyManga 可能返回 `210`、限频或账号/设备限制。源会显示服务器提示并停止该次读取，不自动切换镜像重试，不轮换设备信息。按提示等待、在官网核对作品或使用官方客户端检查账号状态后再试。
 
-目录返回空数据时，源会明确提示，不将空目录当作读取成功。构建和离线测试通过不能证明所有网络环境下都能阅读；完整阅读仍需要在实际设备上验证。未实现云端收藏、评论和第三方代理。
+CopyManga 目录返回空数据时，源会明确提示。Komiic 和 MangaDex 的筛选可能使目录为空；可在官网核对可用章节或调整章节设置。MangaDex HTTP 429 会提示限频并停止请求。构建和离线测试通过不能证明所有网络环境下都能阅读；完整阅读仍需要在实际设备上验证。未实现云端收藏、评论和第三方代理。
 
 ## 开发
 
@@ -41,7 +55,7 @@ npm test
 npm run build
 ```
 
-构建生成本目录的 `dist/sources.json`、`dist/sources/copymanga.stt` 和安装网页，再复制到根目录的 `site/suwatte/`。构建时也会检查产物能在不提供 Node.js 全局变量的 JavaScript 环境中启动。请求签名、数据模型和排序逻辑来自共享模块 `packages/copymanga`。
+构建生成本目录的 `dist/sources.json`、`dist/sources/` 下的三个 `.stt` 源和安装网页，再复制到根目录的 `site/suwatte/`。构建时会实际执行三个产物的详情和图片回调，确认它们能在不提供 Node.js 全局变量的 JavaScript 环境中工作。数据模型和协议检查来自 `packages/` 下对应的站点模块。
 
 ```sh
 npm run serve:suwatte
@@ -51,11 +65,15 @@ npm run serve:suwatte
 
 ```sh
 npm run smoke:suwatte
+npm run smoke:suwatte -- komiic
+npm run smoke:suwatte -- mangadex
 ```
 
-此命令使用官方模拟器顺序测试搜索、详情、目录、章节图片地址和单张图片的 HTTP HEAD，不下载整章图片，不登录账号。遇到上游限制会输出失败阶段并结束为失败。可通过 `COPYMANGA_QUERY` 指定搜索词，`COPYMANGA_COMIC` 指定作品 ID，或 `COPYMANGA_API` 指定 API 域名；代理使用 `HTTPS_PROXY` / `HTTP_PROXY` 环境变量。模拟器中的登录存储仅供测试，不能替代 iPad 的安全存储。
+这些命令使用官方模拟器顺序测试搜索、详情、目录、章节图片地址和单张图片。CopyManga 和 MangaDex 使用 HTTP HEAD；Komiic 的图片接口对 HEAD 返回 404，所以会 GET 一张图片，消耗一张图片额度。测试不登录、不保存图片、不下载整章，遇到上游限制会输出失败阶段并结束为失败。可通过 `SOURCE_QUERY` 指定搜索词，`SOURCE_COMIC` 指定作品 ID；CopyManga 仍兼容 `COPYMANGA_QUERY`、`COPYMANGA_COMIC` 与 `COPYMANGA_API`。代理使用 `HTTPS_PROXY` / `HTTP_PROXY` 环境变量。账号登录仅做了模拟响应测试，尚需在 iPad 上用实际账号验证。
 
-修改发布代码时提高源的数字版本 `sources/suwatte/src/sources/copymanga/index.ts` 中的 `info.version`，然后推送；Suwatte 据此判断是否更新。不要更改 `info.id`，否则已有书架记录可能失去关联。
+SDK 1.0.0 的结果校验器会去掉类型声明中的 `ChapterPage.context`。源产物保留此字段；离线测试分别检查结果结构与原始回调的图片上下文，实时测试为模拟器补入章节上下文。设备端的上下文传递仍需在 Suwatte 7.2.0 上验证。
+
+修改发布代码时提高对应源 `src/sources/<站点>/index.ts` 中的 `info.version`，然后推送；Suwatte 据此判断是否更新。不要更改 `info.id`，否则已有书架记录可能失去关联。
 
 ## 接口参考
 
@@ -64,6 +82,11 @@ npm run smoke:suwatte
 - [Venera CopyManga 源](https://github.com/venera-app/venera-configs/blob/main/copy_manga.js)
 - [Venera 衍生 CopyManga 源](https://github.com/Souitou-iop/venerax-configs-enhanced/blob/main/copy_manga.js)
 - [Mihon CopyManga 扩展](https://github.com/coffee522/extensions-copymanga/tree/main/src/zh/copymanga)
+- [Komiic 官网](https://komiic.com)的公开 GraphQL 接口与前端登录调用
+- [Mihon / Keiyoushi Komiic 扩展](https://github.com/keiyoushi/extensions-source/tree/main/src/zh/komiic)
+- [Venera Komiic 源](https://github.com/venera-app/venera-configs/blob/main/komiic.js)
+- [MangaDex 官方 API 文档](https://api.mangadex.org/docs/)
+- [Venera MangaDex 源](https://github.com/venera-app/venera-configs/blob/main/manga_dex.js)
 - [Suwatte 官方工具链](https://github.com/Suwatte/Toolchain)
 
-本项目与 Suwatte、CopyManga 官方无关联。项目代码采用 MIT 许可，依赖包各自保留其许可。
+本项目与阅读器、各站点官方无关联。项目代码采用 MIT 许可，依赖包各自保留其许可。

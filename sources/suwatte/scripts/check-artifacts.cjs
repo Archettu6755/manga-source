@@ -6,18 +6,23 @@ const { createHmac } = require("node:crypto");
 
 const catalog = JSON.parse(fs.readFileSync("dist/sources.json", "utf8"));
 assert.equal(catalog.catalogVersion, 2);
-assert.equal(catalog.sources.length, 1);
-const info = catalog.sources[0];
+assert.deepEqual(catalog.sources.map(source => source.id).sort(), ["en.mangadex", "zh.copymanga", "zh.komiic"]);
+const info = catalog.sources.find(source => source.id === "zh.copymanga");
 assert.equal(info.id, "zh.copymanga");
 assert.equal(info.environment, "jsc");
 const artifact = path.join("dist", "sources", `${info.path}.stt`);
-let script = fs.readFileSync(artifact, "utf8");
 const notices = [
   ["CryptoJS", path.join(path.dirname(require.resolve("crypto-js")), "LICENSE")],
   ["Suwatte Toolchain", path.join(path.dirname(require.resolve("@suwatte/toolchain")), "..", "LICENSE")],
 ].map(([name, file]) => `${name}\n${fs.readFileSync(file, "utf8")}`).join("\n\n");
-script += `\n/*\nThird-party notices\n${notices.replace(/\*\//g, "* /")}\n*/\n`;
-fs.writeFileSync(artifact, script);
+for (const source of catalog.sources) {
+  assert.equal(source.environment, "jsc");
+  const file = path.join("dist", "sources", `${source.path}.stt`);
+  const bundle = fs.readFileSync(file, "utf8") + `\n/*\nThird-party notices\n${notices.replace(/\*\//g, "* /")}\n*/\n`;
+  assert.match(bundle.slice(0, 512), /"use httpclient"/);
+  fs.writeFileSync(file, bundle);
+}
+const script = fs.readFileSync(artifact, "utf8");
 fs.writeFileSync("dist/THIRD_PARTY_NOTICES.txt", notices);
 assert.match(script.slice(0, 512), /"use httpclient"/);
 const values = new Map([["copymanga.api", "https://api.copy202601.com"]]);
@@ -53,5 +58,37 @@ async function verifyRuntime() {
   const pages = await source.getChapterPages("fixture", "chapter");
   assert.deepEqual(Array.from(pages, page => page.url), ["https://images.example/1.webp", "https://images.example/2.webp"]);
   console.log(`Verified ${artifact} (${Buffer.byteLength(script)} bytes), catalog, JSC signing and page ordering.`);
+  for (const id of ["zh.komiic", "en.mangadex"]) {
+    const metadata = catalog.sources.find(entry => entry.id === id);
+    const file = path.join("dist", "sources", `${metadata.path}.stt`);
+    const japaneseManga = { id: "fixture", attributes: { originalLanguage: "ja", title: { en: "Fixture" } }, relationships: [] };
+    class NewClient {
+      interceptors = { request: { use() {} }, response: { use() {} } };
+      async post(url, body) {
+        const request = JSON.parse(body);
+        return { status: 200, json: async () => ({ data: request.operationName === "imagesByChapterId"
+          ? { imagesByChapterId: [{ kid: "z" }, { kid: "a" }] }
+          : { comicById: { id: "fixture", title: "Fixture", imageUrl: "https://images.example/cover.jpg", status: "ONGOING" } } }) };
+      }
+      async get(url) {
+        const body = url.includes("/at-home/")
+          ? { baseUrl: "https://images.example", chapter: { hash: "hash", data: ["z.jpg", "a.jpg"], dataSaver: [] } }
+          : { data: url.includes("/chapter/")
+            ? { id: "chapter", attributes: { translatedLanguage: "en", pages: 2 }, relationships: [{ id: "fixture", type: "manga" }] }
+            : japaneseManga };
+        return { status: 200, json: async () => ({ result: "ok", ...body }) };
+      }
+    }
+    const scope = vm.createContext({ HttpClient: NewClient, ObjectStore: store, SecureStore: store });
+    vm.runInContext(fs.readFileSync(file, "utf8"), scope, { timeout: 5_000 });
+    const delegate = scope.SourcePackage.bootstrap();
+    assert.equal((await delegate.getContent("fixture")).title, "Fixture");
+    const images = await delegate.getChapterPages("fixture", "chapter");
+    assert.deepEqual(Array.from(images, page => page.url), id === "zh.komiic"
+      ? ["https://komiic.com/api/image/z", "https://komiic.com/api/image/a"]
+      : ["https://images.example/data/hash/z.jpg", "https://images.example/data/hash/a.jpg"]);
+    if (id === "zh.komiic") assert.equal(images[0].context.chapterId, "chapter");
+    console.log(`Verified ${file}, JSC content, image order and source bootstrap.`);
+  }
 }
 verifyRuntime().catch(error => { console.error(error); process.exitCode = 1; });

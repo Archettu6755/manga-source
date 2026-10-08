@@ -7,11 +7,12 @@
   "engines": { "node": ">=22" },
   "workspaces": ["packages/*", "sources/*"],
   "scripts": {
-    "check": "npm run build -w @archettu/copymanga && npm run check --workspaces --if-present",
-    "test": "npm run build -w @archettu/copymanga && npm test --workspaces --if-present",
-    "build": "npm run build -w @archettu/copymanga && npm run build -w @archettu/suwatte-sources && node scripts/build-site.cjs",
-    "serve:suwatte": "npm run build -w @archettu/copymanga && npm run serve -w @archettu/suwatte-sources",
-    "smoke:suwatte": "npm run build -w @archettu/copymanga && npm run smoke -w @archettu/suwatte-sources"
+    "build:protocols": "npm run build -w @archettu/copymanga -w @archettu/komiic -w @archettu/mangadex",
+    "check": "npm run build:protocols && npm run check --workspaces --if-present",
+    "test": "npm run build:protocols && npm test --workspaces --if-present",
+    "build": "npm run build:protocols && npm run build -w @archettu/suwatte-sources && node scripts/build-site.cjs",
+    "serve:suwatte": "npm run build:protocols && npm run serve -w @archettu/suwatte-sources",
+    "smoke:suwatte": "npm run build:protocols && npm run smoke -w @archettu/suwatte-sources --"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
