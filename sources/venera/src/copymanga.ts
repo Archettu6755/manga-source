@@ -1,6 +1,6 @@
 import {
   appHeaders, createDevice, DEFAULT_API, isCopyApi, loginBody, normalizeApi, readResults,
-  WEBSITE, imageHeaders, readList, requireComic, orderedPages, parseComicList, parseCardList,
+  WEBSITE, COPY_WEBSITES, copyWebsite, copyRegion, imageHeaders, readList, requireComic, orderedPages, parseComicList, parseCardList,
   parseTopics, parseThemes, parseHome, WEB_PAGE_SIZE, RECOMMEND_PAGE_SIZE, TOPIC_PAGE_SIZE,
   CHAPTER_PAGE_SIZE, PAGE_SIZE, RANK_PERIODS, REGIONS, STATUSES,
   type DeviceInfo, type Comic, type Details, type ApiList, type ApiChapter, type ApiPages, type BrowseTheme,
@@ -11,24 +11,40 @@ import { category, choice, choiceId, info, json, list, pageNumber, params, part,
 const FEEDS: [string, string][] = [["home", "首页推荐"], ["all", "发现／全部漫画"], ["topics", "专题"],
   ["themes", "题材"], ["ranks", "排行榜"], ["recommend", "漫画推荐"], ["newest", "全新上架"],
   ["latest", "最近更新"], ["popular", "热门漫画"], ["completed", "已完结"]];
-const WEB_HEADERS = { Referer: `${WEBSITE}/`,
-  "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 Version/18.5 Safari/605.1.15" };
-
 class CopyApi {
   readonly transport = new Transport(1500);
   private discovered?: string;
+  private discoveredRegion?: string;
   constructor(private readonly source: SourceStore) {}
+  region(): "0" | "1" { return copyRegion(this.source.loadSetting("region")); }
+  website(): string { return copyWebsite(this.source.loadSetting("website")); }
+  private webHeaders() { return { Referer: `${this.website()}/`,
+    "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 Version/18.5 Safari/605.1.15" }; }
+  async refresh() {
+    this.discovered = undefined;
+    this.source.deleteData("discoveredApi");
+    // Discover even when a manual address is configured, without changing that setting.
+    await this.discover();
+  }
   private headers(token = true) {
     let device = this.source.loadData("device") as DeviceInfo | undefined;
     if (!device) { device = createDevice(); this.source.saveData("device", device); }
-    return appHeaders(device, token ? String(this.source.loadData("token") ?? "") : "");
+    return appHeaders(device, token ? String(this.source.loadData("token") ?? "") : "", new Date(), this.region());
   }
   async base(): Promise<string> {
     const manual = this.source.loadSetting("api");
     if (manual) return normalizeApi(String(manual));
-    if (this.discovered) return this.discovered;
-    const cached = this.source.loadData("discoveredApi") as { url?: string; at?: number } | undefined;
-    if (cached?.url && isCopyApi(cached.url) && Date.now() - Number(cached.at) < 86_400_000) return this.discovered = cached.url;
+    const region = this.region();
+    if (this.discovered && this.discoveredRegion === region) return this.discovered;
+    const cached = this.source.loadData("discoveredApi") as { url?: string; at?: number; region?: string } | undefined;
+    if (cached?.url && cached.region === region && isCopyApi(cached.url) && Date.now() - Number(cached.at) < 86_400_000) {
+      this.discoveredRegion = region;
+      return this.discovered = cached.url;
+    }
+    return this.discover();
+  }
+  private async discover(): Promise<string> {
+    const region = this.region();
     let restricted = false;
     try {
       const response = await this.transport.request("GET", "https://api.copy-manga.com/api/v3/system/network2?platform=3", this.headers(false));
@@ -39,19 +55,21 @@ class CopyApi {
       const host = result.api?.[0]?.[0];
       if (host && isCopyApi(normalizeApi(host))) {
         this.discovered = normalizeApi(host);
-        this.source.saveData("discoveredApi", { url: this.discovered, at: Date.now() });
+        this.discoveredRegion = region;
+        this.source.saveData("discoveredApi", { url: this.discovered, at: Date.now(), region });
         return this.discovered;
       }
     } catch (error) { if (restricted) throw error; }
+    this.discoveredRegion = region;
     return this.discovered = DEFAULT_API;
   }
   async get<T>(path: string, values: Record<string, string | number | boolean> = {}): Promise<T> {
-    const response = await this.transport.request("GET", `${await this.base()}/api/v3/${path}?${params({ in_mainland: false, ...values })}`, this.headers());
+    const response = await this.transport.request("GET", `${await this.base()}/api/v3/${path}?${params({ in_mainland: this.region() === "1", ...values })}`, this.headers());
     return readResults<T>(response.status, json(response));
   }
   async web(path: string, values: Record<string, string | number | boolean> = {}) {
     const query = params(values);
-    const response = await this.transport.request("GET", `${WEBSITE}${path}${query ? `?${query}` : ""}`, WEB_HEADERS);
+    const response = await this.transport.request("GET", `${this.website()}${path}${query ? `?${query}` : ""}`, this.webHeaders());
     if (response.status !== 200) throw new Error(`CopyManga 浏览页面暂时无法访问（HTTP ${response.status}）。`);
     return response.body;
   }
@@ -59,8 +77,8 @@ class CopyApi {
     const values = { q: keyword, q_type: "", limit: PAGE_SIZE, offset: (page - 1) * PAGE_SIZE };
     if (this.source.loadSetting("search") === "app") return this.get<ApiList<Comic>>("search/comic", values);
     const path = (await this.web("/search")).match(/const\s+countApi\s*=\s*["']([^"']+)["']/)?.[1];
-    if (!path || !(path.startsWith("/api/") || path.startsWith(`${WEBSITE}/api/`))) throw new Error("CopyManga 网页搜索接口已变化，请更新源或切换 App 搜索。");
-    const response = await this.transport.request("GET", `${path.startsWith("/") ? WEBSITE : ""}${path}?${params({ ...values, platform: 2 })}`, WEB_HEADERS);
+    if (!path || !(path.startsWith("/api/") || path.startsWith(`${this.website()}/api/`))) throw new Error("CopyManga 网页搜索接口已变化，请更新源或切换 App 搜索。");
+    const response = await this.transport.request("GET", `${path.startsWith("/") ? this.website() : ""}${path}?${params({ ...values, platform: 2 })}`, this.webHeaders());
     return readResults<ApiList<Comic>>(response.status, json(response));
   }
   async login(username: string, password: string) {
@@ -76,9 +94,9 @@ class CopyApi {
 
 export function createSource(source: SourceStore): SourceConfig {
   const api = new CopyApi(source);
-  let themeCache: { at: number; value: BrowseTheme[] } | undefined;
+  let themeCache: { at: number; website: string; value: BrowseTheme[] } | undefined;
   const themes = async () => {
-    if (!themeCache || Date.now() - themeCache.at > 3_600_000) themeCache = { at: Date.now(), value: parseThemes(await api.web("/filter")) };
+    if (!themeCache || themeCache.website !== api.website() || Date.now() - themeCache.at > 3_600_000) themeCache = { at: Date.now(), website: api.website(), value: parseThemes(await api.web("/filter")) };
     return themeCache.value;
   };
   const item = (value: Comic): ComicItem => {
@@ -140,17 +158,18 @@ export function createSource(source: SourceStore): SourceConfig {
       { label: "状态", options: STATUSES.map(value => `${value.id || "all"}-${value.title}`) },
       { label: "题材", options: ["all-全部", ...(await themes()).map(value => choice(value.path_word, value.name))] }];
   }
-  let lastDetails: { id: string; at: number; value: Details } | undefined;
+  let lastDetails: { id: string; connection: string; at: number; value: Details } | undefined;
   async function details(id: string) {
-    if (lastDetails?.id === id && Date.now() - lastDetails.at < 60_000) return lastDetails.value;
+    const connection = `${api.website()}|${api.region()}|${source.loadSetting("api") ?? ""}`;
+    if (lastDetails?.id === id && lastDetails.connection === connection && Date.now() - lastDetails.at < 60_000) return lastDetails.value;
     const value = await api.get<Details>(`comic2/${encodeURIComponent(id)}`, { platform: 3 });
     requireComic(value.comic);
     if (!value.groups || typeof value.groups !== "object" || Array.isArray(value.groups)) throw new Error("CopyManga 缺少章节分组。");
-    lastDetails = { id, at: Date.now(), value };
+    lastDetails = { id, connection, at: Date.now(), value };
     return value;
   }
   return {
-    ...info("copymanga", "拷贝漫画"),
+    ...info("copymanga", "拷贝漫画"), version: "1.0.1",
     category: { ...category("拷贝漫画 · Archettu", FEEDS.filter(([key]) => !["home", "themes", "topics", "ranks"].includes(key))), enableRankingPage: true },
     explore: FEEDS.map(([key, title]) => ({ title: `拷贝漫画 · ${title}`, type: ["home", "themes", "topics", "ranks"].includes(key) ? "multiPartPage" : "multiPageComicList",
       load: async page => {
@@ -198,17 +217,20 @@ export function createSource(source: SourceStore): SourceConfig {
         if (!seen.size) throw new Error("CopyManga 未返回章节，请核对官网访问提示。");
         return { title: comic.name, cover: comic.cover, description: comic.brief, subtitle: comic.status?.display,
           tags: { 作者: comic.author?.map(author => author.name) ?? [], 题材: comic.theme?.map(theme => theme.name) ?? [] },
-          chapters, url: `${WEBSITE}/comic/${encodeURIComponent(id)}` };
+          chapters, url: `${api.website()}/comic/${encodeURIComponent(id)}` };
       },
       loadEp: async (id, chapter) => {
         if (!chapter) throw new Error("请选择章节。");
         return { images: orderedPages(await api.get<ApiPages>(`comic/${encodeURIComponent(id)}/chapter2/${encodeURIComponent(chapter)}`)).map(page => page.url) };
       },
-      onImageLoad: () => ({ headers: imageHeaders() }), onThumbnailLoad: () => ({ headers: imageHeaders() }),
+      onImageLoad: () => ({ headers: imageHeaders(new Date(), api.region()) }), onThumbnailLoad: () => ({ headers: imageHeaders(new Date(), api.region()) }),
     },
     account: { login: (username, password) => api.login(username, password), logout: () => { source.deleteData("token"); lastDetails = undefined; }, registerWebsite: `${WEBSITE}/reg` },
     settings: {
+      website: { title: "官网入口（浏览与网页搜索）", type: "select", default: "mainland", options: COPY_WEBSITES.map(entry => ({ value: entry.id, text: entry.title })) },
+      region: { title: "资源线路（直连选大陆，代理可选海外）", type: "select", default: "1", options: [{ value: "1", text: "大陆线路" }, { value: "0", text: "海外线路" }] },
       api: { title: "API 域名（留空自动获取）", type: "input", default: "" },
+      refreshApi: { title: "刷新自动 API（手动地址留空时生效）", type: "callback", buttonText: "重新获取", callback: async () => { lastDetails = undefined; themeCache = undefined; await api.refresh(); } },
       search: { title: "搜索接口", type: "select", default: "web", options: [{ value: "web", text: "网页搜索" }, { value: "app", text: "App 搜索" }] },
     },
   };

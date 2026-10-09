@@ -10,7 +10,7 @@ test("scripts follow the original loader, register unique keys and preserve ever
     assert.match(scriptFor(id).split("\n")[0], /^class [a-z]+ extends ComicSource \{$/i);
     const { source, context } = fixture(id);
     assert.equal(source.key, `archettu_${id}`);
-    assert.equal(source.version, "1.0.0");
+    assert.equal(source.version, id === "copymanga" ? "1.0.1" : "1.0.0");
     assert.equal(source.url, `https://archettu6755.github.io/manga-source/venera/${id}.js`);
     assert.equal(source.explore.length, count);
     assert.equal(new Set(source.explore.map(page => page.title)).size, count);
@@ -98,6 +98,19 @@ test("CopyManga restricted requests stop without retrying or rotating devices", 
   await assert.rejects(source.comic.loadEp("comic", "chapter"), /受限/);
   assert.equal(calls.length, 1);
   assert.ok(data.get("device"));
+});
+
+test("CopyManga mainland and overseas settings reach chapter requests and image headers", async () => {
+  const settings = { api: "https://api.copy202601.com", region: "1" };
+  const { source, calls } = fixture("copymanga", () => response({ code: 200, results: { chapter: { words: [0], contents: [{ url: "https://images.example/page.webp" }] } } }), settings);
+  await source.comic.loadEp("comic", "chapter");
+  assert.equal(new URL(calls[0].url).searchParams.get("in_mainland"), "true");
+  assert.equal(calls[0].headers.region, "1");
+  assert.equal((await source.comic.onImageLoad!("https://images.example/page.webp", "comic", "chapter")).headers.region, "1");
+  settings.region = "0";
+  await source.comic.loadEp("comic", "chapter");
+  assert.equal(new URL(calls[1].url).searchParams.get("in_mainland"), "false");
+  assert.equal(calls[1].headers.region, "0");
 });
 test("Komiic every comic entrance maps to its GraphQL field, period, status and sort", async () => {
   const { source, calls } = fixture("komiic", () => response({ data: { comics: [komiicComic] } }));

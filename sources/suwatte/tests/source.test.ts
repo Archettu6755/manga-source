@@ -48,7 +48,7 @@ test("search resolves the live relative endpoint and uses total for pagination",
   const results = await source.getSearchResults({ query: " 测试 " }, 2);
   assert.equal(results.items[0].id, "sample");
   assert.equal(results.isLastPage, true);
-  assert.equal(calls[1].url, "https://www.mangacopy.com/api/kb/web/searchcl/comics");
+  assert.equal(calls[1].url, "https://www.copy4000.com/api/kb/web/searchcl/comics");
   assert.equal(calls[1].config?.params?.offset, 30);
   assert.equal(calls[1].config?.params?.q, "测试");
   assert.equal(calls[1].config?.headers?.authorization, undefined);
@@ -62,6 +62,31 @@ test("images use their own client and send public image headers without the acco
   assert.equal(source.getConfiguration().useClientForImageRequests, true);
   assert.equal(calls[0].config?.headers?.["User-Agent"], "COPY/3.0.9");
   assert.equal(calls[0].config?.headers?.authorization, undefined);
+});
+
+test("connection settings select the website and resource region while refresh preserves login", async () => {
+  const { source, calls } = fixture(call => {
+    if (call.url.includes("network2")) return { results: { api: [["api.copy202601.com"]] } };
+    if (call.url.endsWith("/search")) return { text: 'const countApi = "/api/kb/web/searchcl/comics";' };
+    if (call.url.includes("chapter2")) return { results: { chapter: { words: [0], contents: [{ url: "https://images.example/page.webp" }] } } };
+    return { results: { list: [comic], total: 1, offset: 0 } };
+  });
+  const secure = (globalThis as unknown as { SecureStore: STTStore }).SecureStore;
+  await secure.set("copymanga.token", "fixture-token");
+  await ObjectStore.set("copymanga.discoveredApi", { url: "https://api.copy2000.online", at: Date.now(), region: "0" });
+  await source.onFormSubmitted("settings", { api: "", website: "global", region: "0", refreshApi: true });
+  assert.equal(calls[0].config?.headers?.region, "0");
+  assert.equal(await secure.string("copymanga.token"), "fixture-token");
+  await source.getSearchResults({ query: "测试" }, 1);
+  assert.equal(calls[1].url, "https://www.copy20.com/search");
+  await source.getChapterPages("sample", "chapter");
+  assert.equal(calls.at(-1)?.config?.params?.in_mainland, false);
+  await source.onFormSubmitted("settings", { region: "1", website: "mainland" });
+  await source.getChapterPages("sample", "chapter");
+  assert.equal(calls.at(-1)?.config?.params?.in_mainland, true);
+  assert.equal(calls.at(-1)?.config?.headers?.region, "1");
+  await source.client.head("https://images.example/page.webp");
+  assert.equal(calls.at(-1)?.config?.headers?.region, "1");
 });
 
 test("chapter pagination survives a server page cap and preserves all groups", async () => {

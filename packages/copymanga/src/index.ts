@@ -3,6 +3,17 @@ import Utf8 from "crypto-js/enc-utf8";
 import HmacSHA256 from "crypto-js/hmac-sha256";
 
 export const WEBSITE = "https://www.mangacopy.com";
+export const COPY_WEBSITES = [
+  { id: "mainland", title: "大陆入口（copy4000）", url: "https://www.copy4000.com" },
+  { id: "global", title: "通用入口（copy20）", url: "https://www.copy20.com" },
+  { id: "legacy", title: "原入口（mangacopy）", url: WEBSITE },
+];
+export function copyWebsite(value: unknown): string {
+  return (COPY_WEBSITES.find(entry => entry.id === value) ?? COPY_WEBSITES[0]).url;
+}
+export function copyRegion(value: unknown): "0" | "1" {
+  return value === "0" ? "0" : "1";
+}
 export const DEFAULT_API = "https://api.copy202601.com";
 export const APP_VERSION = "3.0.9";
 export const PAGE_SIZE = 30;
@@ -10,13 +21,14 @@ export const CHAPTER_PAGE_SIZE = 100;
 
 export * from "./browse";
 
-export function imageHeaders(now = new Date()): Record<string, string> {
+export function imageHeaders(now = new Date(), region: "0" | "1" = "0"): Record<string, string> {
   return {
     "User-Agent": `COPY/${APP_VERSION}`,
     source: "copyApp",
     referer: `com.copymanga.app-${APP_VERSION}`,
     version: APP_VERSION,
     platform: "3",
+    region,
     dt: `${now.getFullYear()}.${String(now.getMonth() + 1).padStart(2, "0")}.${String(now.getDate()).padStart(2, "0")}`,
   };
 }
@@ -87,7 +99,7 @@ export function createDevice(): DeviceInfo {
   };
 }
 
-export function appHeaders(device: DeviceInfo, token = "", now = new Date()): Record<string, string> {
+export function appHeaders(device: DeviceInfo, token = "", now = new Date(), region: "0" | "1" = "0"): Record<string, string> {
   const timestamp = Math.floor(now.getTime() / 1_000).toString();
   // Public request-signing parameter used by the Venera CopyManga adapter.
   const key = Base64.parse("M2FmMDg1OTAzMTEwMzJlZmUwNjYwNTUwYTA1NjNhNTM=");
@@ -100,7 +112,7 @@ export function appHeaders(device: DeviceInfo, token = "", now = new Date()): Re
     referer: `com.copymanga.app-${APP_VERSION}`,
     version: APP_VERSION,
     Accept: "application/json",
-    region: "0",
+    region,
     authorization: token ? `Token ${token}` : "Token",
     umstring: "b4c89ca4104ea9a97750314d791520ac",
     "x-auth-timestamp": timestamp,

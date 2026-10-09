@@ -33,7 +33,7 @@ async function main() {
         const Network = {
           async get(url, headers) {
             let body;
-            if (url.startsWith('https://www.mangacopy.com/comics')) return { status: 200, headers: {}, body: '<main><div class="exemptComic-box" total="1" list="[{&quot;path_word&quot;:&quot;fixture&quot;,&quot;name&quot;:&quot;Fixture&quot;,&quot;cover&quot;:&quot;https://images.example/cover.jpg&quot;}]"></div></main>' };
+            if (url.startsWith('https://www.copy4000.com/comics')) return { status: 200, headers: {}, body: '<main><div class="exemptComic-box" total="1" list="[{&quot;path_word&quot;:&quot;fixture&quot;,&quot;name&quot;:&quot;Fixture&quot;,&quot;cover&quot;:&quot;https://images.example/cover.jpg&quot;}]"></div></main>' };
             if (url.includes('chapter2/')) {
               if (!headers['x-auth-signature'] || !headers.pseudoid) throw new Error('Unsigned CopyManga request');
               body = { code: 200, results: { chapter: { words: [1, 0], contents: [{ url: 'https://images.example/2.jpg' }, { url: 'https://images.example/1.jpg' }] } } };

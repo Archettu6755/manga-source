@@ -8,7 +8,7 @@ import {
 } from "@suwatte/toolchain/types";
 import { CopyMangaApi } from "./api";
 import {
-  CHAPTER_PAGE_SIZE, PAGE_SIZE, WEBSITE, chapterNumber, imageHeaders, normalizeApi, orderedPages,
+  CHAPTER_PAGE_SIZE, PAGE_SIZE, WEBSITE, COPY_WEBSITES, chapterNumber, imageHeaders, normalizeApi, orderedPages,
   readList, requireComic, type ApiChapter, type ApiList, type ApiPages, type Comic, type Details,
   WEB_PAGE_SIZE, RECOMMEND_PAGE_SIZE, TOPIC_PAGE_SIZE, RANK_PERIODS, REGIONS, STATUSES,
   parseComicList, parseCardList, parseHome, parseThemes, parseTopics, type Topic, type BrowseTheme,
@@ -18,7 +18,7 @@ export default class CopyManga implements Delegate {
   static info: SourceInfo = {
     id: "zh.copymanga",
     name: "拷贝漫画 · Archettu",
-    version: 3,
+    version: 4,
     website: WEBSITE,
     languages: ["zh-Hans", "zh-Hant"],
     rating: ContentRating.UNKNOWN,
@@ -31,8 +31,8 @@ export default class CopyManga implements Delegate {
   private cachedThemes?: { at: number; value: BrowseTheme[] };
 
   constructor() {
-    this.client.interceptors.request.use(request => {
-      for (const [name, value] of Object.entries(imageHeaders())) request.headers.set(name, value);
+    this.client.interceptors.request.use(async request => {
+      for (const [name, value] of Object.entries(imageHeaders(new Date(), await this.api.region()))) request.headers.set(name, value);
       return request;
     });
   }
@@ -251,8 +251,13 @@ export default class CopyManga implements Delegate {
 
   async getSettingsPage(): Promise<UIForm> {
     return { sections: [
-      { header: "连接", footer: "API 留空时自动获取地址。修改地址不会清除登录或设备信息。", views: [
+      { header: "连接", footer: "大陆直连优先使用大陆入口与大陆线路；使用代理时可切换海外线路。官网入口用于浏览和网页搜索，API 域名用于详情和章节。", views: [
+        UIPicker({ id: "website", title: "官网入口", currentValue: await ObjectStore.string("copymanga.website") ?? "mainland", options: COPY_WEBSITES.map(entry => ({ id: entry.id, title: entry.title })) }),
+        UIPicker({ id: "region", title: "资源线路", currentValue: await ObjectStore.string("copymanga.region") ?? "1", options: [
+          { id: "1", title: "大陆线路" }, { id: "0", title: "海外线路" },
+        ] }),
         UITextField({ id: "api", title: "API 域名", placeholder: "自动获取", currentValue: await ObjectStore.string("copymanga.api") ?? "" }),
+        UIToggle({ id: "refreshApi", title: "刷新自动 API（手动域名留空时生效）", currentValue: false }),
         UIPicker({ id: "search", title: "搜索接口", currentValue: await ObjectStore.string("copymanga.search") ?? "web", options: [
           { id: "web", title: "网页搜索" }, { id: "app", title: "App 搜索" },
         ] }),
@@ -274,9 +279,14 @@ export default class CopyManga implements Delegate {
     if (Boolean(username) !== Boolean(password)) throw new Error("请同时填写账号和密码。");
     if (data.logout && username) throw new Error("请分别执行登录与退出登录。");
     if (api !== undefined) await ObjectStore.set("copymanga.api", normalized);
+    if (COPY_WEBSITES.some(entry => entry.id === data.website)) await ObjectStore.set("copymanga.website", data.website);
+    if (data.region === "0" || data.region === "1") await ObjectStore.set("copymanga.region", data.region);
     if (data.search === "web" || data.search === "app") await ObjectStore.set("copymanga.search", data.search);
+    if (data.refreshApi || data.region !== undefined) await ObjectStore.remove("copymanga.discoveredApi");
     this.api.reset();
     this.lastDetails = undefined;
+    this.cachedThemes = undefined;
+    if (data.refreshApi) await this.api.refresh();
     if (data.logout) await this.api.logout();
     else if (username) await this.api.login(username, password);
   }

@@ -42,7 +42,7 @@ const store = {
 class Client {
   interceptors = { request: { use() {} } };
   async get(url, config) {
-    if (url.includes("/comics") && url.startsWith("https://www.mangacopy.com/")) {
+    if (url.includes("/comics") && url.startsWith("https://www.copy4000.com/")) {
       return { status: 200, text: async () => '<main><div class="exemptComic-box" total="1" list="[{&quot;path_word&quot;:&quot;fixture&quot;,&quot;name&quot;:&quot;Fixture&quot;,&quot;cover&quot;:&quot;https://images.example/cover.jpg&quot;}]"></div></main>' };
     }
     const timestamp = config.headers["x-auth-timestamp"];

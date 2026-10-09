@@ -1,6 +1,6 @@
 import { load, type CheerioAPI } from "cheerio/slim";
 import JSON5 from "json5";
-import { WEBSITE, type ApiList, type Comic, type Tag } from "./index";
+import { WEBSITE, COPY_WEBSITES, type ApiList, type Comic, type Tag } from "./index";
 
 export const WEB_PAGE_SIZE = 50;
 export const RECOMMEND_PAGE_SIZE = 60;
@@ -16,7 +16,8 @@ export interface BrowseTheme extends Tag { count: number }
 export interface HomeSection { id: string; title: string; comics: Comic[]; list?: string; topics?: Topic[] }
 
 function pathId(href: string | undefined, kind: "comic" | "topic"): string | undefined {
-  const path = href?.replace(WEBSITE, "");
+  const origin = COPY_WEBSITES.find(entry => href?.startsWith(`${entry.url}/`));
+  const path = origin ? href!.slice(origin.url.length) : href;
   const match = path?.match(new RegExp(`^/${kind}/([^/?#]+)/?$`));
   return match ? decodeURIComponent(match[1]) : undefined;
 }

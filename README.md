@@ -24,7 +24,7 @@ https://archettu6755.github.io/manga-source/venera/index.json
 
 | 源 | 阅读内容 | 设置 |
 | --- | --- | --- |
-| 拷贝漫画 · Archettu | 中文漫画 | API 域名、搜索接口、账号登录 |
+| 拷贝漫画 · Archettu | 中文漫画 | 官网入口、大陆／海外线路、API 域名与刷新、搜索接口、账号登录 |
 | Komiic · Archettu | 以繁体中文为主的漫画 | 卷与章节筛选、账号登录 |
 | MangaDex（日漫）· Archettu | 原始语言为日语的日本漫画，默认英文译文 | 英文或日语章节、节省图片流量 |
 
