@@ -1,0 +1,22 @@
+{
+  "name": "@archettu/venera-sources",
+  "version": "0.1.0",
+  "private": true,
+  "license": "MIT",
+  "scripts": {
+    "check": "tsc --noEmit",
+    "test": "tsx --test tests/*.test.ts",
+    "build": "node scripts/build.cjs && tsx scripts/check-artifacts.ts",
+    "smoke": "tsx scripts/smoke.ts"
+  },
+  "dependencies": {
+    "@archettu/copymanga": "0.1.0",
+    "@archettu/komiic": "0.1.0",
+    "@archettu/mangadex": "0.1.0"
+  },
+  "devDependencies": {
+    "esbuild": "^0.25.12",
+    "quickjs-emscripten": "^0.31.0",
+    "undici": "^7.16.0"
+  }
+}

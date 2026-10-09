@@ -5,6 +5,7 @@ const root = path.resolve(__dirname, "..");
 const output = path.join(root, "site");
 fs.mkdirSync(output, { recursive: true });
 fs.cpSync(path.join(root, "sources", "suwatte", "dist"), path.join(output, "suwatte"), { recursive: true });
+fs.cpSync(path.join(root, "sources", "venera", "dist"), path.join(output, "venera"), { recursive: true });
 fs.copyFileSync(path.join(root, "web", "index.html"), path.join(output, "index.html"));
 fs.writeFileSync(path.join(output, ".nojekyll"), "");
-console.log("Published layout: site/suwatte/. Venera is reserved and has no released source yet.");
+console.log("Published layout: site/suwatte/ and site/venera/.");
