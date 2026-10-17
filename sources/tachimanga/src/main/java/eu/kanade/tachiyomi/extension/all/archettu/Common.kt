@@ -20,7 +20,7 @@ import uy.kohesive.injekt.api.get
 import java.io.IOException
 
 class ArchettuFactory : SourceFactory {
-    override fun createSources() = listOf(CopyManga(), Komiic(), MangaDex())
+    override fun createSources() = listOf(CopyManga(), Komiic(), MangaDex(), Manhuagui(), Zaimanhua())
 }
 
 fun JSONArray.objects(): List<JSONObject> = (0 until length()).map { getJSONObject(it) }

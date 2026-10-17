@@ -5,7 +5,8 @@ import { getQuickJS, shouldInterruptAfterDeadline } from "quickjs-emscripten";
 
 async function main() {
   const catalog = JSON.parse(fs.readFileSync("dist/index.json", "utf8")) as { key: string; url: string; name: string; version: string }[];
-  assert.deepEqual(catalog.map(entry => entry.key).sort(), ["archettu_copymanga", "archettu_komiic", "archettu_mangadex"]);
+  assert.deepEqual(catalog.map(entry => entry.key).sort(), ["archettu_copymanga", "archettu_komiic", "archettu_mangadex", "archettu_manhuagui", "archettu_zaimanhua"]);
+  const sites = JSON.parse(fs.readFileSync(path.join("..", "..", "fixtures", "sites.json"), "utf8"));
   const QuickJS = await getQuickJS();
   for (const entry of catalog) {
     const id = entry.key.replace("archettu_", "");
@@ -21,6 +22,7 @@ async function main() {
       const setup = `
         const data = {};
         const settings = { api: "https://api.copy202601.com" };
+        const sites = ${JSON.stringify(sites)};
         class ComicSource {
           loadData(key) { return data[key]; }
           saveData(key, value) { data[key] = value; }
@@ -32,6 +34,9 @@ async function main() {
         const chapter = { id: 'chapter', attributes: { translatedLanguage: 'en', chapter: '1', pages: 2 }, relationships: [{ id: 'fixture', type: 'manga' }] };
         const Network = {
           async get(url, headers) {
+            if (url.startsWith('https://marketing.aiacgn.com/')) return { status: 200, headers: {}, body: JSON.stringify({ code: 200, results: { request_id: 'fixture-id' } }) };
+            if (${JSON.stringify(id)} === 'manhuagui') return { status: 200, headers: {}, body: url.endsWith('22.html') ? sites.manhuagui.packed : url.includes('/comic/') ? sites.manhuagui.detail : sites.manhuagui.list };
+            if (${JSON.stringify(id)} === 'zaimanhua') return { status: 200, headers: {}, body: JSON.stringify({ errno: 0, data: url.includes('/comic/chapter/') ? { data: sites.zaimanhua.pages } : [sites.zaimanhua.listItem] }) };
             let body;
             if (url.startsWith('https://www.copy4000.com/comics')) return { status: 200, headers: {}, body: '<main><div class="exemptComic-box" total="1" list="[{&quot;path_word&quot;:&quot;fixture&quot;,&quot;name&quot;:&quot;Fixture&quot;,&quot;cover&quot;:&quot;https://images.example/cover.jpg&quot;}]"></div></main>' };
             if (url.includes('chapter2/')) {
@@ -54,11 +59,12 @@ async function main() {
         globalThis.complete = false;
         globalThis.failure = null;
         (async () => {
-          const pages = await temp.comic.loadEp('fixture', 'chapter');
+          const added = ['manhuagui', 'zaimanhua'].includes(${JSON.stringify(id)});
+          const pages = await temp.comic.loadEp(added ? '123' : 'fixture', added ? '22' : 'chapter');
           if (pages.images.length !== 2) throw new Error('Missing chapter pages');
           if (${JSON.stringify(id)} === 'copymanga' && pages.images[0] !== 'https://images.example/1.jpg') throw new Error('Incorrect CopyManga page ordering');
           const catalog = await temp.explore.find(page => page.type === 'multiPageComicList').load(1);
-          if (catalog.comics[0].title !== 'Fixture') throw new Error('Invalid catalog');
+          if (catalog.comics[0].title !== (added ? '测试作品' : 'Fixture')) throw new Error('Invalid catalog');
           globalThis.result = { name: temp.name, key: temp.key, version: temp.version, url: temp.url };
           globalThis.complete = true;
         })().catch(error => { globalThis.failure = String(error); globalThis.complete = true; });

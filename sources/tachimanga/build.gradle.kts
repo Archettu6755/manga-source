@@ -10,8 +10,8 @@ android {
         applicationId = "eu.kanade.tachiyomi.extension.all.archettu"
         minSdk = 21
         targetSdk = 35
-        versionCode = 2
-        versionName = "1.4.2"
+        versionCode = 3
+        versionName = "1.4.3"
     }
     signingConfigs {
         create("repository") {
@@ -32,8 +32,9 @@ android {
     }
     compileOptions { sourceCompatibility = JavaVersion.VERSION_1_8; targetCompatibility = JavaVersion.VERSION_1_8 }
     testOptions.unitTests.isReturnDefaultValues = true
-    sourceSets.getByName("main").java.srcDirs("../../packages/copymanga/native", "../../packages/mangadex/native")
+    sourceSets.getByName("main").java.srcDirs("../../packages/copymanga/native", "../../packages/mangadex/native", "../../packages/manhuagui/native", "../../packages/zaimanhua/native")
     sourceSets.getByName("main").assets.srcDir("build/generated/assets")
+    sourceSets.getByName("test").resources.srcDir("../../fixtures")
 }
 kotlin { compilerOptions { jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_1_8) } }
 

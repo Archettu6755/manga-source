@@ -6,7 +6,7 @@ const root = path.resolve(__dirname, "..");
 const output = path.join(root, "dist");
 const repository = path.resolve(root, "..", "..");
 const dependencies = ["crypto-js", "cheerio", "cheerio-select", "htmlparser2", "domhandler", "domutils", "dom-serializer",
-  "domelementtype", "entities", "htmlparser2/node_modules/entities", "css-select", "css-what", "boolbase", "nth-check", "json5"];
+  "domelementtype", "entities", "htmlparser2/node_modules/entities", "css-select", "css-what", "boolbase", "nth-check", "json5", "lz-string"];
 const notices = dependencies.map(name => {
   const directory = path.join(repository, "node_modules", name);
   const license = fs.readdirSync(directory).find(file => /^license(?:\.md|\.txt)?$/i.test(file));
@@ -19,6 +19,8 @@ const descriptions = {
   copymanga: "中文漫画；完整浏览目录、专题、题材、男频和女频排行榜。",
   komiic: "以繁体中文为主；分类、标签、作者、原作、角色及推荐目录。",
   mangadex: "原始语言为日语的日本漫画，不默认译文语言；支持语言筛选、公开书单和标签筛选。",
+  manhuagui: "漫画柜；官网首页、全部漫画、完整索引和日／周／月／总排行。",
+  zaimanhua: "再漫画；官网推荐、更新、完整分类索引及三种指标的四周期排行。",
 };
 fs.mkdirSync(output, { recursive: true });
 const catalog = sources.map(id => {
@@ -28,7 +30,7 @@ const catalog = sources.map(id => {
   vm.runInContext(`(() => { ${script}\nthis.source = new ${className}(); }).call()`, context, { timeout: 5000 });
   const source = context.source;
   const noticesComment = `\n/*\nThird-party notices\n${notices.replace(/\*\//g, "* /")}\n*/\n`;
-  fs.writeFileSync(path.join(output, `${id}.js`), script + (id === "copymanga" ? noticesComment : ""));
+  fs.writeFileSync(path.join(output, `${id}.js`), script + noticesComment);
   return { name: source.name, key: source.key, version: source.version, url: source.url, description: descriptions[id] };
 });
 fs.writeFileSync(path.join(output, "index.json"), `${JSON.stringify(catalog, null, 2)}\n`);

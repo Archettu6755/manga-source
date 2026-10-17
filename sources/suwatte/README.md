@@ -1,6 +1,6 @@
 # Archettu 的 Suwatte 漫画源
 
-供 iPad 和 iPhone 上的 Suwatte 使用，提供 CopyManga、Komiic 和 MangaDex。仓库保存适配代码和订阅目录；漫画图片由阅读器直接请求各站点。
+供 iPad 和 iPhone 上的 Suwatte 使用，提供 CopyManga、Komiic、MangaDex、漫画柜和再漫画。仓库保存适配代码和订阅目录；漫画图片由阅读器直接请求各站点。
 
 ## 安装
 
@@ -67,7 +67,7 @@ npm test
 npm run build
 ```
 
-构建生成本目录的 `dist/sources.json`、`dist/sources/` 下的三个 `.stt` 源和安装网页，再复制到根目录的 `site/suwatte/`。构建时会实际执行三个产物的详情和图片回调，确认它们能在不提供 Node.js 全局变量的 JavaScript 环境中工作。数据模型和协议检查来自 `packages/` 下对应的站点模块。
+构建生成本目录的 `dist/sources.json`、`dist/sources/` 下的五个 `.stt` 源和安装网页，再复制到根目录的 `site/suwatte/`。构建时会实际执行五个产物的详情和图片回调，确认它们能在不提供 Node.js 全局变量的 JavaScript 环境中工作。数据模型和协议检查来自 `packages/` 下对应的站点模块。
 
 ```sh
 npm run serve:suwatte
@@ -104,3 +104,13 @@ SDK 1.0.0 的结果校验器会去掉类型声明中的 `ChapterPage.context`。
 - [Suwatte 官方工具链](https://github.com/Suwatte/Toolchain)
 
 本项目与阅读器、各站点官方无关联。项目代码采用 MIT 许可，依赖包各自保留其许可。
+
+## 漫画柜和再漫画
+
+漫画柜保留官网首页全部栏目、更新、热门、上架、评分、连载、完结、漫画索引和四周期排行。索引可按题材、地区、读者群、年份、首字母、状态组合筛选。源设置中可确认网站的成人提示，或手动选择图片服务器；不会自动切换服务器重试。
+
+再漫画提供官网五个推荐栏目、更新、全部漫画、热门、完结、短篇、App 分类和官网动态索引。官网与 App 使用不同的分类编号，分别读取对应接口；官网索引包含首字母。排行保留日、周、月、总榜和人气、吐槽、订阅三种指标。部分作品需要再漫画账号或达到网站要求的等级。
+
+CopyManga 大陆详情、章节分组和章节图片地址请求已加入 `request_id`；海外线路不请求该参数。获取参数时不发送账号令牌或设备标识。210 原始提示会显示在阅读器中，源更新不能保证解除服务器限制。[协议与验证记录](../../docs/source-protocols.md)列出本次实测结果。
+
+再漫画账号在源设置中登录，密码仅用于本次请求，令牌保存在 SecureStore。图片请求不携带账号令牌。

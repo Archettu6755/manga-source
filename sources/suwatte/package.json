@@ -2,9 +2,11 @@
   "name": "@archettu/suwatte-sources",
   "version": "0.1.0",
   "private": true,
-  "description": "CopyManga, Komiic and Japanese manga from MangaDex for Suwatte",
+  "description": "CopyManga, Komiic, MangaDex, Manhuagui and Zaimanhua sources for Suwatte",
   "license": "MIT",
-  "engines": { "node": ">=22" },
+  "engines": {
+    "node": ">=22"
+  },
   "scripts": {
     "check": "tsc --noEmit -p tsconfig.test.json",
     "test": "tsx --test tests/*.test.ts",
@@ -13,8 +15,17 @@
     "smoke": "tsx scripts/smoke.ts",
     "smoke:browse": "tsx scripts/smoke-browse.ts"
   },
-  "suwatte": { "listName": "杕的自用漫画源" },
-  "dependencies": { "@archettu/copymanga": "0.1.0", "@archettu/komiic": "0.1.0", "@archettu/mangadex": "0.1.0" },
+  "suwatte": {
+    "listName": "杕的自用漫画源"
+  },
+  "dependencies": {
+    "@archettu/copymanga": "0.1.0",
+    "@archettu/komiic": "0.1.0",
+    "@archettu/mangadex": "0.1.0",
+    "@archettu/manga-core": "0.1.0",
+    "@archettu/manhuagui": "0.1.0",
+    "@archettu/zaimanhua": "0.1.0"
+  },
   "devDependencies": {
     "@suwatte/toolchain": "1.0.0"
   }

@@ -29,7 +29,7 @@ function fixture(handler: (call: Call) => Reply) {
       }
       const call = { url, config, body };
       calls.push(call);
-      const reply = handler(call);
+      const reply = url.startsWith("https://marketing.aiacgn.com/") ? { results: { request_id: "fixture-request-id" } } : handler(call);
       return {
         status: reply.status ?? 200,
         json: async () => reply.body ?? { code: 200, results: reply.results },
@@ -177,8 +177,9 @@ test("discovery cannot redirect a token to an unrelated host", async () => {
   await secure.set("copymanga.token", "fixture-token");
   await source.getContent("sample");
   assert.equal(calls[0].config?.headers?.authorization, "Token");
-  assert.match(calls[1].url, /^https:\/\/api\.copy202601\.com\//);
-  assert.equal(calls[1].config?.headers?.authorization, "Token fixture-token");
+  assert.match(calls[2].url, /^https:\/\/api\.copy202601\.com\//);
+  assert.equal(calls[2].config?.headers?.authorization, "Token fixture-token");
+  assert.equal(calls[1].config?.headers?.authorization, undefined);
 });
 
 test("invalid settings fail before making requests or changing the stored address", async () => {

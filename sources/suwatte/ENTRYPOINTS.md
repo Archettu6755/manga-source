@@ -1,6 +1,6 @@
 # 漫画浏览入口
 
-核对日期：2026-10-08。此表记录阅读器中的公开漫画浏览入口。账号收藏、阅读记录、评论、投稿、下载客户端和站点设置属于网站账号或工具功能，尚未适配成源入口；Suwatte 的本地书架和阅读记录由阅读器管理。
+核对日期：2026-10-17。此表记录阅读器中的公开漫画浏览入口。账号收藏、阅读记录、评论、投稿、下载客户端和站点设置属于网站账号或工具功能，尚未适配成源入口；Suwatte 的本地书架和阅读记录由阅读器管理。
 
 ## CopyManga
 
@@ -54,3 +54,36 @@
 新增或调整入口时核对官网与公开接口，保留已有入口 ID，说明用户要求的排除项。完整分页和分类导航必须有测试。上游空列表、访问限制及页面变化分别报告，不能根据一次空响应删掉入口。执行 `npm run check`、`npm test`、`npm run build`，再按需执行三项 `smoke:browse` 检查。
 
 参考：[CopyManga 官网](https://www.mangacopy.com/)、[Komiic 官网](https://komiic.com/)、[MangaDex 官网](https://mangadex.org/)、[MangaDex API](https://api.mangadex.org/docs/)。
+
+## 漫画柜
+
+| 入口 ID | 名称 | 数据来源 |
+| --- | --- | --- |
+| home | 网站首页 | `/`，热门漫画更新和全部首页 tab 栏目，保留栏目名称 |
+| latest | 最近更新 | `/list/update_p<page>.html` |
+| popular | 热门漫画 | `/list/view_p<page>.html` |
+| all | 全部漫画 | `/list/index_p<page>.html` |
+| newest | 最新上架 | `/list/index_p<page>.html` |
+| top-rated | 评分最高 | `/list/rate_p<page>.html` |
+| ongoing | 连载漫画 | `/list/lianzai/update_p<page>.html` |
+| completed | 完结漫画 | `/list/wanjie/update_p<page>.html` |
+| categories | 漫画索引 | 题材、地区、读者群、年份、首字母、状态；进入 `filter:<字段>:<值>` |
+| ranks | 排行榜 | `/rank/` 的日、周、月、总榜，进入 `rank:<周期>` |
+
+搜索支持更新、人气、上架、评分排序。章节分组和网站返回的图片顺序均保留。压缩章节列表和图片数据按格式解析，不执行网站 JavaScript。
+
+## 再漫画
+
+| 入口 ID | 名称 | 数据来源 |
+| --- | --- | --- |
+| home | 官网首页推荐 | 官网 `/api/v1/comic2/index`，焦点、精品、更新、周榜、月榜五个栏目 |
+| latest | 最近更新 | App `/comic/update/list/0/<page>` |
+| popular | 热门漫画 | App `/comic/rank/list` 的总人气榜 |
+| all | 全部漫画 | App `/comic/filter/list`，完整分页 |
+| completed | 已完结 | App 分类接口，`status=2310` |
+| short | 短篇 | App 分类接口，`status=29205` |
+| categories | 分类索引 | App 的题材、状态、读者群、地区；进入 `filter:<字段>:<值>` |
+| web-categories | 官网分类／字母索引 | 官网 `/api/v1/comic1/filter_type`；进入 `web-filter:<字段>:<值>`，使用官网分类接口 |
+| ranks | 排行榜 | 四个周期 × 人气／吐槽／订阅，进入 `rank:<周期>:<指标>` |
+
+App 分类编号与官网编号不同，分别保留。空推荐栏目和分类入口不因没有结果而删除。账号收藏、评论和签到尚未适配。

@@ -1,6 +1,6 @@
 # Venera 漫画源
 
-提供 CopyManga、Komiic 和 MangaDex，版本均从 `1.0.0` 开始。按照原版 Venera 1.6.3 的源接口开发，使用独立的 `archettu_copymanga`、`archettu_komiic`、`archettu_mangadex` 标识，可以与其他仓库的同站源并存。
+提供 CopyManga、Komiic、MangaDex、漫画柜和再漫画，版本均从 `1.0.0` 开始。按照原版 Venera 1.6.3 的源接口开发，使用独立的 `archettu_copymanga`、`archettu_komiic`、`archettu_mangadex`、`archettu_manhuagui`、`archettu_zaimanhua` 标识，可以与其他仓库的同站源并存。
 
 ## 安装
 
@@ -15,6 +15,8 @@ https://archettu6755.github.io/manga-source/venera/index.json
 - [拷贝漫画](https://archettu6755.github.io/manga-source/venera/copymanga.js)
 - [Komiic](https://archettu6755.github.io/manga-source/venera/komiic.js)
 - [MangaDex（日漫）](https://archettu6755.github.io/manga-source/venera/mangadex.js)
+- [漫画柜](https://archettu6755.github.io/manga-source/venera/manhuagui.js)
+- [再漫画](https://archettu6755.github.io/manga-source/venera/zaimanhua.js)
 
 浏览入口分布在探索页和分类页中。每个探索页标题包含站点名，避免不同源之间重名。题材、专题、标签、作者、原作和角色使用目录条目及“查看更多”按钮，点击后进入该目录的漫画列表。[入口清单](ENTRYPOINTS.md)记录完整对应关系。
 
@@ -28,9 +30,19 @@ Komiic 支持原生账号登录、会话刷新及卷／章节筛选。图片请�
 
 MangaDex 收录原始语言为日语的日本漫画，不默认译文语言。章节语言默认为「不限译文语言」，可手动选择简体中文、繁体中文、英文或日语。更新后旧的语言设置恢复为不限。章节标题附带语言代码，便于区分不同译文。筛选覆盖列表、官网书单、详情、目录和图片读取；外站、未来发布、空图片或不可用的章节不显示。支持省流图片、标签包含／排除、状态、分级和排序。分类页实时读取标签；搜索选项使用 2026-10-09 核对的 77 个标签，网站新增标签时应更新快照并提高源版本。
 
-两个登录源使用 Venera 的原生账号功能。原版应用会保存账号和密码以便重新登录，令牌和 Cookie 也保存在应用数据中；不能将其描述为 Suwatte 的安全存储。源代码不会额外写入密码，也不会向本仓库或发布站点发送账号信息。
+CopyManga、Komiic 和再漫画使用 Venera 的原生账号功能。原版应用会保存账号和密码以便重新登录，令牌和 Cookie 也保存在应用数据中；不能将其描述为 Suwatte 的安全存储。源代码不会额外写入密码，也不会向本仓库或发布站点发送账号信息。
 
 专题和作者等分页目录会读取可访问的目录页，再显示为可点击条目。Komiic 作者使用官网的更新时间升序，并缓存索引十分钟；漫画列表仍按需分页。网站在后续作者页返回 `Offset is too large` 时，保留已读到的条目并显示分页限制提示。大型目录首次打开需要等待网络请求结束。返回部分重复条目时按 ID 去重，整页重复或格式错误会报告失败，不缓存意外中断的目录。
+
+## 漫画柜和再漫画
+
+漫画柜保留官网首页全部栏目、更新、热门、上架、评分、连载、完结、漫画索引和四周期排行。索引可按题材、地区、读者群、年份、首字母、状态组合筛选。源设置中可确认网站的成人提示，或手动选择图片服务器；不会自动切换服务器重试。
+
+再漫画提供官网五个推荐栏目、更新、全部漫画、热门、完结、短篇、App 分类和官网动态索引。官网与 App 使用不同的分类编号，分别读取对应接口；官网索引包含首字母。排行保留日、周、月、总榜和人气、吐槽、订阅三种指标。部分作品需要再漫画账号或达到网站要求的等级。
+
+CopyManga 大陆详情、章节分组和章节图片地址请求已加入 `request_id`；海外线路不请求该参数。获取参数时不发送账号令牌或设备标识。210 原始提示会显示在阅读器中，源更新不能保证解除服务器限制。[协议与验证记录](../../docs/source-protocols.md)列出本次实测结果。
+
+再漫画使用 Venera 原生账号登录；应用本身可能保存账号密码以便重新登录。
 
 ## 原版与 fork
 
@@ -67,6 +79,6 @@ npm run smoke:venera -- mangadex
 
 ## 参考和许可
 
-接口依据：[官方源开发文档](https://github.com/venera-app/venera/blob/v1.6.3/doc/comic_source.md)、[官方 JavaScript API](https://github.com/venera-app/venera-configs/blob/main/_venera_.js)、[官方源模板](https://github.com/venera-app/venera-configs/blob/main/_template_.js)。三个站点的协议复用本仓库的共享模块；Venera 适配代码在此目录独立实现。
+接口依据：[官方源开发文档](https://github.com/venera-app/venera/blob/v1.6.3/doc/comic_source.md)、[官方 JavaScript API](https://github.com/venera-app/venera-configs/blob/main/_venera_.js)、[官方源模板](https://github.com/venera-app/venera-configs/blob/main/_template_.js)。五个站点的协议复用本仓库的共享模块；Venera 适配代码在此目录独立实现。
 
 代码采用 MIT 许可。CopyManga 构建产物带有 CryptoJS、Cheerio、JSON5 及解析依赖的许可说明；完整依赖许可也发布为 `THIRD_PARTY_NOTICES.txt`。

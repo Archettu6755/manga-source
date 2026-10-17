@@ -151,6 +151,18 @@ export function readResults<T>(status: number, body: unknown): T {
   return payload.results;
 }
 
+export const REQUEST_ID_URL = "https://marketing.aiacgn.com/api/v2/adopr/query3/?format=json&ident=200100001";
+
+export function needsRequestId(path: string, region: "0" | "1"): boolean {
+  return region === "1" && /^(?:comic2\/[^/]+|comic\/[^/]+\/(?:chapter2\/[^/]+|group\/[^/]+\/chapters))$/.test(path);
+}
+
+export function readRequestId(status: number, body: unknown): string {
+  const value = readResults<{ request_id?: string }>(status, body).request_id;
+  if (typeof value !== "string" || !value.trim()) throw new Error("CopyManga 未返回大陆接口所需的 request_id，请稍后重试。");
+  return value;
+}
+
 export function readList<T>(value: ApiList<T>): ApiList<T> {
   if (!Array.isArray(value.list) || !Number.isInteger(value.total) || value.total < 0) {
     throw new Error("CopyManga 返回的列表格式已变化，请更新源。");

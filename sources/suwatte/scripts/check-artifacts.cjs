@@ -6,7 +6,7 @@ const { createHmac } = require("node:crypto");
 
 const catalog = JSON.parse(fs.readFileSync("dist/sources.json", "utf8"));
 assert.equal(catalog.catalogVersion, 2);
-assert.deepEqual(catalog.sources.map(source => source.id).sort(), ["en.mangadex", "zh.copymanga", "zh.komiic"]);
+assert.deepEqual(catalog.sources.map(source => source.id).sort(), ["en.mangadex", "zh.copymanga", "zh.komiic", "zh.manhuagui", "zh.zaimanhua"]);
 const info = catalog.sources.find(source => source.id === "zh.copymanga");
 assert.equal(info.id, "zh.copymanga");
 assert.equal(info.environment, "jsc");
@@ -14,7 +14,7 @@ const artifact = path.join("dist", "sources", `${info.path}.stt`);
 const notices = [
   ["CryptoJS", path.join(path.dirname(require.resolve("crypto-js")), "LICENSE")],
   ["Suwatte Toolchain", path.join(path.dirname(require.resolve("@suwatte/toolchain")), "..", "LICENSE")],
-  ...["cheerio", "cheerio-select", "htmlparser2", "domhandler", "domutils", "dom-serializer", "domelementtype", "entities", "css-select", "css-what", "boolbase", "nth-check", "json5"].map(name => {
+  ...["cheerio", "cheerio-select", "htmlparser2", "domhandler", "domutils", "dom-serializer", "domelementtype", "entities", "css-select", "css-what", "boolbase", "nth-check", "json5", "lz-string"].map(name => {
     if (name === "boolbase") return [name, path.join("scripts", "licenses", "boolbase.txt")];
     const directory = path.join("..", "..", "node_modules", name);
     const license = fs.readdirSync(directory).find(file => /^license(?:\.md|\.txt)?$/i.test(file));
@@ -42,6 +42,7 @@ const store = {
 class Client {
   interceptors = { request: { use() {} } };
   async get(url, config) {
+    if (url.startsWith("https://marketing.aiacgn.com/")) return { status: 200, json: async () => ({ code: 200, results: { request_id: "fixture-id" } }) };
     if (url.includes("/comics") && url.startsWith("https://www.copy4000.com/")) {
       return { status: 200, text: async () => '<main><div class="exemptComic-box" total="1" list="[{&quot;path_word&quot;:&quot;fixture&quot;,&quot;name&quot;:&quot;Fixture&quot;,&quot;cover&quot;:&quot;https://images.example/cover.jpg&quot;}]"></div></main>' };
     }
@@ -69,7 +70,8 @@ async function verifyRuntime() {
   assert.deepEqual(Array.from(pages, page => page.url), ["https://images.example/1.webp", "https://images.example/2.webp"]);
   assert.equal((await source.getItemList({ key: "all" }, 1)).items[0].title, "Fixture");
   console.log(`Verified ${artifact} (${Buffer.byteLength(script)} bytes), catalog, JSC signing and page ordering.`);
-  for (const id of ["zh.komiic", "en.mangadex"]) {
+  const sites = JSON.parse(fs.readFileSync(path.join("..", "..", "fixtures", "sites.json"), "utf8"));
+  for (const id of ["zh.komiic", "en.mangadex", "zh.manhuagui", "zh.zaimanhua"]) {
     const metadata = catalog.sources.find(entry => entry.id === id);
     const file = path.join("dist", "sources", `${metadata.path}.stt`);
     const japaneseManga = { id: "fixture", attributes: { originalLanguage: "ja", title: { en: "Fixture" } }, relationships: [] };
@@ -82,6 +84,8 @@ async function verifyRuntime() {
           : { comicById: { id: "fixture", title: "Fixture", imageUrl: "https://images.example/cover.jpg", status: "ONGOING" } } }) };
       }
       async get(url) {
+        if (id === "zh.manhuagui") return { status: 200, text: async () => url.endsWith("22.html") ? sites.manhuagui.packed : sites.manhuagui.detail };
+        if (id === "zh.zaimanhua") return { status: 200, text: async () => JSON.stringify({ errno: 0, data: { data: url.includes("/comic/chapter/") ? sites.zaimanhua.pages : sites.zaimanhua.raw } }) };
         const body = url.includes("/at-home/")
           ? { baseUrl: "https://images.example", chapter: { hash: "hash", data: ["z.jpg", "a.jpg"], dataSaver: [] } }
           : { data: url.includes("/chapter/")
@@ -93,10 +97,12 @@ async function verifyRuntime() {
     const scope = vm.createContext({ HttpClient: NewClient, ObjectStore: store, SecureStore: store });
     vm.runInContext(fs.readFileSync(file, "utf8"), scope, { timeout: 5_000 });
     const delegate = scope.SourcePackage.bootstrap();
-    assert.equal((await delegate.getContent("fixture")).title, "Fixture");
-    const images = await delegate.getChapterPages("fixture", "chapter");
+    const added = id === "zh.manhuagui" || id === "zh.zaimanhua";
+    assert.equal((await delegate.getContent(added ? "123" : "fixture")).title, added ? "测试作品" : "Fixture");
+    const images = await delegate.getChapterPages(added ? "123" : "fixture", added ? "22" : "chapter");
     assert.deepEqual(Array.from(images, page => page.url), id === "zh.komiic"
       ? ["https://komiic.com/api/image/z", "https://komiic.com/api/image/a"]
+      : id === "zh.manhuagui" ? sites.manhuagui.pages : id === "zh.zaimanhua" ? sites.zaimanhua.pages.page_url_hd
       : ["https://images.example/data/hash/z.jpg", "https://images.example/data/hash/a.jpg"]);
     if (id === "zh.komiic") assert.equal(images[0].context.chapterId, "chapter");
     console.log(`Verified ${file}, JSC content, image order and source bootstrap.`);

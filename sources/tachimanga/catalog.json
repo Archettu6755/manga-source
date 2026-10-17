@@ -1,11 +1,13 @@
 {
   "name": "杕的自用漫画源",
   "package": "eu.kanade.tachiyomi.extension.all.archettu",
-  "version": "1.4.2",
-  "code": 2,
+  "version": "1.4.3",
+  "code": 3,
   "sources": [
     { "name": "拷贝漫画 · 杕", "lang": "zh", "id": "790675500000000001", "baseUrl": "https://www.copy4000.com", "versionId": 1 },
     { "name": "Komiic · 杕", "lang": "zh", "id": "790675500000000002", "baseUrl": "https://komiic.com", "versionId": 1 },
-    { "name": "MangaDex（日漫）· 杕", "lang": "all", "id": "790675500000000003", "baseUrl": "https://mangadex.org", "versionId": 1 }
+    { "name": "MangaDex（日漫）· 杕", "lang": "all", "id": "790675500000000003", "baseUrl": "https://mangadex.org", "versionId": 1 },
+    { "name": "漫画柜 · 杕", "lang": "zh", "id": "790675500000000004", "baseUrl": "https://www.manhuagui.com", "versionId": 1 },
+    { "name": "再漫画 · 杕", "lang": "zh", "id": "790675500000000005", "baseUrl": "https://manhua.zaimanhua.com", "versionId": 1 }
   ]
 }

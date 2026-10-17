@@ -8,6 +8,10 @@ const kotlin = `package eu.kanade.tachiyomi.extension.all.archettu\n\nobject Gen
 if (!fs.existsSync(output) || fs.readFileSync(output, "utf8") !== kotlin) fs.writeFileSync(output, kotlin);
 const assets = path.join(root, "build", "generated", "assets");
 fs.mkdirSync(assets, { recursive: true });
+for (const [id, name] of [["manhuagui", "Manhuagui"], ["zaimanhua", "Zaimanhua"]]) {
+  const protocol = require(`@archettu/${id}`);
+  fs.writeFileSync(path.join(assets, `${id}-catalog.json`), JSON.stringify({ feeds: protocol.FEEDS, filters: protocol.FILTERS }));
+}
 fs.writeFileSync(path.join(assets, "THIRD_PARTY_NOTICES.txt"), fs.readFileSync(path.join(root, "THIRD_PARTY_NOTICES.txt"), "utf8").replace(/\r\n/g, "\n"));
 const java = process.env.JAVA_HOME ? path.join(process.env.JAVA_HOME, "bin", process.platform === "win32" ? "java.exe" : "java") : "java";
 const proxy = process.env.HTTPS_PROXY || process.env.https_proxy;

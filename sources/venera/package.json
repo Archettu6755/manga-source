@@ -12,7 +12,10 @@
   "dependencies": {
     "@archettu/copymanga": "0.1.0",
     "@archettu/komiic": "0.1.0",
-    "@archettu/mangadex": "0.1.0"
+    "@archettu/mangadex": "0.1.0",
+    "@archettu/manga-core": "0.1.0",
+    "@archettu/manhuagui": "0.1.0",
+    "@archettu/zaimanhua": "0.1.0"
   },
   "devDependencies": {
     "esbuild": "^0.25.12",

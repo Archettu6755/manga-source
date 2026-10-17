@@ -7,6 +7,8 @@ import javax.crypto.Mac
 import javax.crypto.spec.SecretKeySpec
 
 object CopyProtocol {
+    const val REQUEST_ID_URL = "https://marketing.aiacgn.com/api/v2/adopr/query3/?format=json&ident=200100001"
+    fun needsRequestId(path: String, region: String) = region == "1" && Regex("comic2/[^/]+|comic/[^/]+/(chapter2/[^/]+|group/[^/]+/chapters)").matches(path)
     fun copyLiteral(text: String): JSONArray {
         val tokens = Regex(""""(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|\b(?:None|True|False)\b""")
         return JSONArray(tokens.replace(text) {

@@ -1,0 +1,115 @@
+{
+  "manhuagui": {
+    "list": "<ul id=\"contList\"><li><a class=\"bcover\" href=\"/comic/123/\" title=\"测试作品\"><img data-src=\"//images.example/cover.jpg\"></a><p class=\"ell\"><a href=\"/comic/123/\">测试作品</a></p></li></ul><div class=\"pager\"><span class=\"current\">1</span><a>2</a></div>",
+    "search": "<div class=\"book-result\"><ul><li><div class=\"book-cover\"><a class=\"bcover\"><img src=\"//images.example/cover.jpg\"></a></div><div class=\"book-detail\"><dl><dt><a href=\"/comic/123/\" title=\"测试作品\">测试作品</a></dt></dl></div></li></ul></div>",
+    "rank": "<table><tr><td class=\"rank-title\"><a href=\"/comic/123/\">测试作品</a></td></tr></table>",
+    "detail": "<div class=\"book-title\"><h1>测试作品</h1></div><p class=\"hcover\"><img src=\"//images.example/cover.jpg\"></p><div id=\"intro-all\">测试简介</div><ul class=\"detail-list\"><li class=\"status\">连载中</li></ul><h4>连载</h4><div id=\"chapter-list-1\" class=\"chapter-list\"><ul><li><a href=\"/comic/123/22.html\" title=\"第2话\"><span>第2话</span></a></li><li><a href=\"/comic/123/11.html\" title=\"第1话\"><span>第1话</span></a></li></ul></div><h4>单行本</h4><div id=\"chapter-list-2\" class=\"chapter-list\"><ul><li><a href=\"/comic/123/33.html\" title=\"第1卷\"><span>第1卷</span></a></li></ul></div>",
+    "hiddenDetail": "<div class=\"book-title\"><h1>测试作品</h1></div><p class=\"hcover\"><img src=\"//images.example/cover.jpg\"></p><div id=\"intro-all\">测试简介</div><ul class=\"detail-list\"><li class=\"status\">连载中</li></ul><input id=\"__VIEWSTATE\" value=\"DwCwLAfIe/GL7xwPTgsAJgSwG4AI0oLwBEAxiAIYAOALgKYBOAtADZoDOl9AjAVkY6Sy0IkKNBszYFkAV0bJmyUlhC1qAM0LwiAewC2aIvA4AmAMzwjRgHQhKOxt0ppKjaoUA03kcC70ZOAtypADsID08EP0DkeFJI+WBYxWU1DW09A2MzDg5rW3ssR2dXAjcOb2RwoOLQ+HLI6IRY+BlI9AxkJEBVZUAZCMAacwQkVEwcfGIyKjomVnYjbl5+QRGRcfFKHya4tAUlFXUCTV19Q1N4ExNsuwcnF3cOQHdlHxrim7D/IIQ6+Aa1+BaIIA\">",
+    "packed": "throw new Error('must never execute');window[\"eval\"](function(p,a,c,k,e,d){return p}(\"0.1({\\\"2\\\":\\\"/图/\\\",\\\"3\\\":[\\\"z.webp\\\",\\\"a.webp\\\"],\\\"4\\\":{\\\"5\\\":123,\\\"6\\\":\\\"signature\\\"}}).preInit();\",7,7,\"MoWQEgPglgtg5gEQIYBckQA6oBYQGZQA2ApgM4SmETEQxA==\"[\"\\x73\\x70\\x6c\\x69\\x74\"](\"|\"),0,{}));",
+    "compressed": "IIZQwgkhhwcotHKOGmAoQLBuDxdoA===",
+    "decompressed": "ASCII与中文\n𝄞",
+    "pages": [
+      "https://i.hamreus.com/图/z.webp?e=123&m=signature",
+      "https://i.hamreus.com/图/a.webp?e=123&m=signature"
+    ]
+  },
+  "zaimanhua": {
+    "raw": {
+      "id": 123,
+      "title": "测试作品",
+      "cover": "https://images.example/cover.jpg",
+      "authors": [
+        {
+          "tag_name": "作者"
+        }
+      ],
+      "types": [
+        {
+          "tag_name": "冒险"
+        }
+      ],
+      "status": [
+        {
+          "tag_name": "连载中"
+        }
+      ],
+      "chapters": [
+        {
+          "title": "连载",
+          "data": [
+            {
+              "chapter_id": 22,
+              "chapter_title": "2话",
+              "updatetime": 1000
+            },
+            {
+              "chapter_id": 11,
+              "chapter_title": "1话"
+            }
+          ]
+        },
+        {
+          "title": "单行本",
+          "data": [
+            {
+              "chapter_id": 33,
+              "chapter_title": "1卷"
+            }
+          ]
+        }
+      ],
+      "canRead": true
+    },
+    "listItem": {
+      "id": 0,
+      "comic_id": 123,
+      "title": "测试作品",
+      "cover": "https://images.example/cover.jpg",
+      "authors": "作者",
+      "types": "冒险/科幻"
+    },
+    "pages": {
+      "canRead": true,
+      "page_url_hd": [
+        "https://images.example/z.jpg",
+        "https://images.example/a.jpg"
+      ]
+    },
+    "webTypes": {
+      "theme": [
+        {
+          "id": 0,
+          "name": "全部"
+        },
+        {
+          "id": 1,
+          "name": "冒险"
+        }
+      ],
+      "firstLetter": [
+        {
+          "val": "",
+          "name": "全部"
+        },
+        {
+          "val": "a",
+          "name": "A"
+        }
+      ]
+    },
+    "home": {
+      "bannerList": [
+        {
+          "obj_id": 123,
+          "title": "测试作品",
+          "cover": "https://images.example/cover.jpg",
+          "sub_title": "作者"
+        }
+      ],
+      "recList": [],
+      "updateList": [],
+      "weekRankList": [],
+      "monthRankList": []
+    }
+  }
+}

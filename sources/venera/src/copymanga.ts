@@ -1,5 +1,5 @@
 import {
-  appHeaders, createDevice, DEFAULT_API, isCopyApi, loginBody, normalizeApi, readResults,
+  appHeaders, createDevice, DEFAULT_API, isCopyApi, loginBody, normalizeApi, readResults, REQUEST_ID_URL, needsRequestId, readRequestId,
   WEBSITE, COPY_WEBSITES, copyWebsite, copyRegion, imageHeaders, readList, requireComic, orderedPages, parseComicList, parseCardList,
   parseTopics, parseThemes, parseHome, WEB_PAGE_SIZE, RECOMMEND_PAGE_SIZE, TOPIC_PAGE_SIZE,
   CHAPTER_PAGE_SIZE, PAGE_SIZE, RANK_PERIODS, REGIONS, STATUSES,
@@ -64,7 +64,13 @@ class CopyApi {
     return this.discovered = DEFAULT_API;
   }
   async get<T>(path: string, values: Record<string, string | number | boolean> = {}): Promise<T> {
-    const response = await this.transport.request("GET", `${await this.base()}/api/v3/${path}?${params({ in_mainland: this.region() === "1", ...values })}`, this.headers());
+    const base = await this.base(), region = this.region();
+    let requestId: Record<string, string> = {};
+    if (needsRequestId(path, region)) {
+      const response = await this.transport.request("GET", REQUEST_ID_URL, imageHeaders(new Date(), region));
+      requestId = { request_id: readRequestId(response.status, json(response)) };
+    }
+    const response = await this.transport.request("GET", `${base}/api/v3/${path}?${params({ in_mainland: region === "1", ...values, ...requestId })}`, this.headers());
     return readResults<T>(response.status, json(response));
   }
   async web(path: string, values: Record<string, string | number | boolean> = {}) {
@@ -169,7 +175,7 @@ export function createSource(source: SourceStore): SourceConfig {
     return value;
   }
   return {
-    ...info("copymanga", "拷贝漫画"), version: "1.0.1",
+    ...info("copymanga", "拷贝漫画"), version: "1.0.2",
     category: { ...category("拷贝漫画 · Archettu", FEEDS.filter(([key]) => !["home", "themes", "topics", "ranks"].includes(key))), enableRankingPage: true },
     explore: FEEDS.map(([key, title]) => ({ title: `拷贝漫画 · ${title}`, type: ["home", "themes", "topics", "ranks"].includes(key) ? "multiPartPage" : "multiPageComicList",
       load: async page => {

@@ -1,7 +1,7 @@
 import type { HttpClient as Client, Primitive, STTStore } from "@suwatte/toolchain/types";
 import {
   appHeaders, createDevice, DEFAULT_API, isCopyApi, loginBody, normalizeApi,
-  readResults, copyRegion, copyWebsite, type DeviceInfo,
+  readResults, copyRegion, copyWebsite, imageHeaders, REQUEST_ID_URL, needsRequestId, readRequestId, type DeviceInfo,
 } from "@archettu/copymanga";
 
 declare const SecureStore: STTStore;
@@ -62,11 +62,15 @@ export class CopyMangaApi {
 
   private async discover(): Promise<string> {
     const region = await this.region();
+    let restricted = false;
     try {
       const response = await this.client.get("https://api.copy-manga.com/api/v3/system/network2", {
         params: { platform: "3" }, headers: await this.headers(false),
       });
-      const results = readResults<{ api?: string[][] }>(response.status, await response.json());
+      restricted = [210, 401, 403, 429].includes(response.status);
+      const body = await response.json();
+      restricted ||= [210, 401, 403, 429].includes(Number((body as { code?: number })?.code));
+      const results = readResults<{ api?: string[][] }>(response.status, body);
       const host = results.api?.[0]?.[0];
       if (typeof host === "string") {
         const candidate = normalizeApi(host);
@@ -76,7 +80,8 @@ export class CopyMangaApi {
           return candidate;
         }
       }
-    } catch {
+    } catch (error) {
+      if (restricted) throw error;
       // Discovery is optional; its failure must not prevent a normal API request.
     }
     this.discoveredApi = DEFAULT_API;
@@ -84,8 +89,14 @@ export class CopyMangaApi {
   }
 
   async get<T>(path: string, params: Record<string, Primitive> = {}): Promise<T> {
-    const response = await this.client.get(`${await this.baseUrl()}/api/v3/${path}`, {
-      params: { in_mainland: await this.region() === "1", ...params }, headers: await this.headers(),
+    const base = await this.baseUrl(), region = await this.region();
+    let requestId: Record<string, string> = {};
+    if (needsRequestId(path, region)) {
+      const response = await this.client.get(REQUEST_ID_URL, { headers: imageHeaders(new Date(), region) });
+      requestId = { request_id: readRequestId(response.status, await response.json()) };
+    }
+    const response = await this.client.get(`${base}/api/v3/${path}`, {
+      params: { in_mainland: region === "1", ...params, ...requestId }, headers: await this.headers(),
     });
     let body: unknown;
     try { body = await response.json(); } catch {

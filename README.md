@@ -1,6 +1,6 @@
 # 杕的自用漫画源
 
-为 Suwatte、Venera 和 Tachimanga 维护独立的 CopyManga、Komiic 和 MangaDex 源。仓库保存适配代码，漫画内容由设备直接请求原网站。
+为 Suwatte、Venera 和 Tachimanga 维护独立的 CopyManga、Komiic、MangaDex、漫画柜和再漫画 源。仓库保存适配代码，漫画内容由设备直接请求原网站。
 
 ## Suwatte 安装
 
@@ -24,7 +24,7 @@ https://archettu6755.github.io/manga-source/venera/index.json
 
 ## Tachimanga 安装
 
-在 App Store 版 Tachimanga 的「浏览 → 扩展 → ＋ → 扩展仓库」中添加以下地址，再安装「杕的自用漫画源」。一个 APK 提供三个图源，图源语言筛选启用中文和多语言（Multi）。
+在 App Store 版 Tachimanga 的「浏览 → 扩展 → ＋ → 扩展仓库」中添加以下地址，再安装「杕的自用漫画源」。一个 APK 提供五个图源，图源语言筛选启用中文和多语言（Multi）。
 
 ```text
 https://archettu6755.github.io/manga-source/tachimanga/index.min.json
@@ -35,16 +35,23 @@ https://archettu6755.github.io/manga-source/tachimanga/index.min.json
 | 源 | 阅读内容 | 设置 |
 | --- | --- | --- |
 | 拷贝漫画 · Archettu | 中文漫画 | 官网入口、大陆／海外线路、API 域名与刷新、搜索接口、账号登录 |
+| 漫画柜 · Archettu | 简体／繁体中文漫画 | 完整索引、四周期排行、成人提示确认、图片服务器选择 |
+| 再漫画 · Archettu | 简体中文为主的漫画 | 官网推荐、动态网页索引、App 分类、排行、账号登录 |
 | Komiic · Archettu | 以繁体中文为主的漫画 | 卷与章节筛选、账号登录 |
 | MangaDex（日漫）· Archettu | 原始语言为日语的日本漫画，不默认译文语言 | 默认不限；可选简体中文、繁体中文、英文或日语，支持节省图片流量 |
 
 MangaDex 的原始语言筛选同时作用于列表、详情、目录和图片读取。英文翻译的韩漫与欧美原创漫画不会出现在这个源中。外站章节、未发布章节和不可用章节不列入目录。
+
+CopyManga 已补齐大陆详情和章节接口使用的 `request_id` 流程。服务器的 210 限制仍由网站决定，详见 [协议与验证记录](docs/source-protocols.md)。
 
 各源的公开漫画浏览入口与数据来源见 [Suwatte 入口清单](sources/suwatte/ENTRYPOINTS.md)与 [Venera 入口清单](sources/venera/ENTRYPOINTS.md)。保留已发布的入口 ID；增补网站入口时同时检查分类、筛选与分页。
 
 ## 目录
 
 ```text
+packages/manga-core/   新源共用的数据模型与阅读器回调约定
+packages/manhuagui/    漫画柜网页解析、压缩章节与图片脚本解析
+packages/zaimanhua/    再漫画 App／网页协议与账号登录
 packages/copymanga/    CopyManga 共享逻辑，不依赖阅读器 API
 packages/komiic/       Komiic 数据模型、响应检查和图片地址
 packages/mangadex/     MangaDex 语言筛选、数据模型和图片地址

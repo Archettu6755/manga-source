@@ -1,0 +1,6 @@
+{
+  "name": "@archettu/zaimanhua", "version": "0.1.0", "private": true,
+  "license": "MIT", "main": "dist/index.js", "types": "dist/index.d.ts",
+  "scripts": { "build": "tsc", "check": "tsc --noEmit", "test": "tsx --test tests/*.test.ts" },
+  "dependencies": { "@archettu/manga-core": "0.1.0", "crypto-js": "4.2.0" }
+}

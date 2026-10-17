@@ -1,16 +1,19 @@
 import assert from "node:assert/strict";
 import { createHmac } from "node:crypto";
 import test from "node:test";
-import { fixture, response, scriptFor, copyComic, komiicComic, japanese, chapter, collection } from "./fixture";
+import { fixture as baseFixture, response, scriptFor, copyComic, komiicComic, japanese, chapter, collection } from "./fixture";
 import type { ComicList, Part } from "../src/runtime";
 const plain = <T>(value: T): T => JSON.parse(JSON.stringify(value));
+const fixture: typeof baseFixture = (id, handler, settings, initial) => baseFixture(id, call =>
+  call.url.startsWith("https://marketing.aiacgn.com/") ? response({ code: 200, results: { request_id: "fixture-request-id" } })
+    : handler ? handler(call) : Promise.reject(new Error("Unexpected network request")), settings, initial);
 
 test("scripts follow the original loader, register unique keys and preserve every explore entry", () => {
-  for (const [id, count] of [["copymanga", 10], ["komiic", 15], ["mangadex", 10]] as const) {
+  for (const [id, count] of [["copymanga", 10], ["komiic", 15], ["mangadex", 10], ["manhuagui", 10], ["zaimanhua", 9]] as const) {
     assert.match(scriptFor(id).split("\n")[0], /^class [a-z]+ extends ComicSource \{$/i);
     const { source, context } = fixture(id);
     assert.equal(source.key, `archettu_${id}`);
-    assert.equal(source.version, id === "komiic" ? "1.0.0" : "1.0.1");
+    assert.equal(source.version, id === "copymanga" ? "1.0.2" : id === "mangadex" ? "1.0.1" : "1.0.0");
     assert.equal(source.url, `https://archettu6755.github.io/manga-source/venera/${id}.js`);
     assert.equal(source.explore.length, count);
     assert.equal(new Set(source.explore.map(page => page.title)).size, count);
@@ -96,7 +99,7 @@ test("CopyManga reads capped chapter pages, all groups and scrambled images", as
 test("CopyManga restricted requests stop without retrying or rotating devices", async () => {
   const { source, calls, data } = fixture("copymanga", () => response({ code: 210, message: "Restricted" }, 210), { api: "https://api.copy202601.com" });
   await assert.rejects(source.comic.loadEp("comic", "chapter"), /受限/);
-  assert.equal(calls.length, 1);
+  assert.equal(calls.filter(call => call.url.includes("chapter2/")).length, 1);
   assert.ok(data.get("device"));
 });
 
@@ -104,13 +107,13 @@ test("CopyManga mainland and overseas settings reach chapter requests and image 
   const settings = { api: "https://api.copy202601.com", region: "1" };
   const { source, calls } = fixture("copymanga", () => response({ code: 200, results: { chapter: { words: [0], contents: [{ url: "https://images.example/page.webp" }] } } }), settings);
   await source.comic.loadEp("comic", "chapter");
-  assert.equal(new URL(calls[0].url).searchParams.get("in_mainland"), "true");
-  assert.equal(calls[0].headers.region, "1");
+  assert.equal(new URL(calls[1].url).searchParams.get("in_mainland"), "true");
+  assert.equal(calls[1].headers.region, "1");
   assert.equal((await source.comic.onImageLoad!("https://images.example/page.webp", "comic", "chapter")).headers.region, "1");
   settings.region = "0";
   await source.comic.loadEp("comic", "chapter");
-  assert.equal(new URL(calls[1].url).searchParams.get("in_mainland"), "false");
-  assert.equal(calls[1].headers.region, "0");
+  assert.equal(new URL(calls[2].url).searchParams.get("in_mainland"), "false");
+  assert.equal(calls[2].headers.region, "0");
 });
 test("Komiic every comic entrance maps to its GraphQL field, period, status and sort", async () => {
   const { source, calls } = fixture("komiic", () => response({ data: { comics: [komiicComic] } }));

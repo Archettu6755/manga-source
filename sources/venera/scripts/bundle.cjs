@@ -1,7 +1,7 @@
 const path = require("node:path");
 const { buildSync } = require("esbuild");
 const root = path.resolve(__dirname, "..");
-const sources = ["copymanga", "komiic", "mangadex"];
+const sources = ["copymanga", "komiic", "mangadex", "manhuagui", "zaimanhua"];
 function bundle(id) {
   if (!sources.includes(id)) throw new Error(`Unknown source: ${id}`);
   const className = `Archettu${id[0].toUpperCase()}${id.slice(1)}`;

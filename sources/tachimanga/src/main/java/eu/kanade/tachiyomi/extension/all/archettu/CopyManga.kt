@@ -75,7 +75,15 @@ class CopyManga : PersonalSource() {
         return url
     }
     private fun api(path: String, values: Map<String, Any> = emptyMap()): JSONObject {
-        val url = queryUrl("${apiBase()}/api/v3/$path", mapOf("in_mainland" to (region == "1")) + values)
+        val base = apiBase()
+        val requestId = if (CopyProtocol.needsRequestId(path, region)) {
+            pause()
+            val result = results(JSONObject(get(CopyProtocol.REQUEST_ID_URL, publicHeaders().build())))
+            val value = result.text("request_id")
+            if (value.isBlank()) throw IOException("拷贝未返回大陆接口所需的 request_id，请稍后重试。")
+            mapOf("request_id" to value)
+        } else emptyMap()
+        val url = queryUrl("$base/api/v3/$path", mapOf("in_mainland" to (region == "1")) + values + requestId)
         pause()
         return results(JSONObject(get(url, appHeaders())))
     }
