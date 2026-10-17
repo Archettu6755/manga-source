@@ -6,6 +6,7 @@ const output = path.join(root, "site");
 fs.mkdirSync(output, { recursive: true });
 fs.cpSync(path.join(root, "sources", "suwatte", "dist"), path.join(output, "suwatte"), { recursive: true });
 fs.cpSync(path.join(root, "sources", "venera", "dist"), path.join(output, "venera"), { recursive: true });
+fs.cpSync(path.join(root, "sources", "tachimanga", "dist"), path.join(output, "tachimanga"), { recursive: true });
 fs.copyFileSync(path.join(root, "web", "index.html"), path.join(output, "index.html"));
 fs.writeFileSync(path.join(output, ".nojekyll"), "");
-console.log("Published layout: site/suwatte/ and site/venera/.");
+console.log("Published layout: site/suwatte/, site/venera/ and site/tachimanga/.");

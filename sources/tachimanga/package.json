@@ -1,0 +1,10 @@
+{
+  "name": "@archettu/tachimanga-sources",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "check": "node scripts/gradle.cjs compileReleaseKotlin",
+    "test": "node scripts/gradle.cjs testReleaseUnitTest",
+    "build": "node scripts/build.cjs"
+  }
+}

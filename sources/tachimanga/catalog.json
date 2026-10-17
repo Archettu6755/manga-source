@@ -1,0 +1,11 @@
+{
+  "name": "杕的自用漫画源",
+  "package": "eu.kanade.tachiyomi.extension.all.archettu",
+  "version": "1.4.1",
+  "code": 1,
+  "sources": [
+    { "name": "拷贝漫画 · 杕", "lang": "zh", "id": "790675500000000001", "baseUrl": "https://www.copy4000.com", "versionId": 1 },
+    { "name": "Komiic · 杕", "lang": "zh", "id": "790675500000000002", "baseUrl": "https://komiic.com", "versionId": 1 },
+    { "name": "MangaDex（日漫）· 杕", "lang": "en", "id": "790675500000000003", "baseUrl": "https://mangadex.org", "versionId": 1 }
+  ]
+}

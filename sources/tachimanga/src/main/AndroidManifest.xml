@@ -1,0 +1,9 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <uses-feature android:name="tachiyomi.extension" android:required="false" />
+    <application android:label="Tachiyomi: 杕的自用漫画源" android:icon="@drawable/ic_source" android:allowBackup="false" android:hasCode="true">
+        <meta-data android:name="tachiyomi.extension.class" android:value=".ArchettuFactory" />
+        <meta-data android:name="tachiyomi.extension.nsfw" android:value="0" />
+        <meta-data android:name="tachiyomix.name" android:value="杕的自用漫画源" />
+        <meta-data android:name="tachiyomix.extensionLib" android:value="1.4" />
+    </application>
+</manifest>

@@ -7,3 +7,10 @@ __temp__/
 !.env.example
 *.log
 .DS_Store
+.gradle/
+.kotlin/
+build/
+local.properties
+*.keystore
+*.jks
+sources/tachimanga/src/main/java/eu/kanade/tachiyomi/extension/all/archettu/GeneratedTags.kt

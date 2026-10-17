@@ -1,6 +1,6 @@
-# Archettu 的漫画源
+# 杕的自用漫画源
 
-为 Suwatte 和 Venera 维护独立的 CopyManga、Komiic 和 MangaDex 源。仓库保存适配代码，漫画内容由设备直接请求原网站。
+为 Suwatte、Venera 和 Tachimanga 维护独立的 CopyManga、Komiic 和 MangaDex 源。仓库保存适配代码，漫画内容由设备直接请求原网站。
 
 ## Suwatte 安装
 
@@ -20,7 +20,17 @@ https://archettu6755.github.io/manga-source/suwatte/
 https://archettu6755.github.io/manga-source/venera/index.json
 ```
 
-[Venera 使用说明](sources/venera/README.md)包含安装、账号存储、入口导航和 fork 接口核对结果。两个阅读器的源列表分别发布，互不覆盖。
+[Venera 使用说明](sources/venera/README.md)包含安装、账号存储、入口导航和 fork 接口核对结果。各阅读器的源列表分别发布。
+
+## Tachimanga 安装
+
+在 App Store 版 Tachimanga 的「浏览 → 扩展 → ＋ → 扩展仓库」中添加以下地址，再安装「杕的自用漫画源」。一个 APK 提供三个图源，语言筛选启用中文和英文。
+
+```text
+https://archettu6755.github.io/manga-source/tachimanga/index.min.json
+```
+
+[Tachimanga 使用说明](sources/tachimanga/README.md)介绍设置、目录筛选和签名发布流程；[入口清单](sources/tachimanga/ENTRYPOINTS.md)说明原生筛选器中的导航方式。
 
 | 源 | 阅读内容 | 设置 |
 | --- | --- | --- |
@@ -40,6 +50,7 @@ packages/komiic/       Komiic 数据模型、响应检查和图片地址
 packages/mangadex/     MangaDex 语言筛选、数据模型和图片地址
 sources/suwatte/       Suwatte 适配、设置、测试和构建
 sources/venera/        Venera 适配、设置、QuickJS 检查和构建
+sources/tachimanga/    Tachimanga Kotlin 扩展、签名 APK 和仓库索引
 scripts/              组装发布站点
 web/                  各阅读器的入口页面
 .github/workflows/    检查、构建和 GitHub Pages 发布
@@ -49,7 +60,7 @@ web/                  各阅读器的入口页面
 
 ## 开发与发布
 
-需要 Node.js 22 或更新版本。使用 npm workspaces 管理依赖，从仓库根目录执行：
+需要 Node.js 22 或更新版本；Tachimanga 还需要 JDK 17+、Android SDK Platform 35、Build Tools 35.0.0 和 Python 3。使用 npm workspaces 管理依赖，从仓库根目录执行：
 
 ```sh
 npm ci
@@ -58,7 +69,7 @@ npm test
 npm run build
 ```
 
-输出位于 `site/`，Suwatte 的源列表位于 `site/suwatte/sources.json`，Venera 的源列表位于 `site/venera/index.json`。推送 `main` 后 GitHub Actions 执行上述检查并发布 Pages，拉取请求只检查和构建。
+输出位于 `site/`，Suwatte 的源列表位于 `site/suwatte/sources.json`，Venera 的源列表位于 `site/venera/index.json`，Tachimanga 的扩展仓库位于 `site/tachimanga/index.min.json`。推送 `main` 后 GitHub Actions 执行上述检查并发布 Pages，拉取请求只检查和构建。
 
 ```sh
 npm run serve:suwatte
@@ -79,6 +90,6 @@ npm run smoke:venera -- mangadex
 
 Venera 的构建会检查全部 `.js` 在 QuickJS 中的加载、浏览和图片地址解析。其联网检查不登录账号、不请求漫画图片；`--browse-only` 只检查浏览目录，默认还检查搜索、详情、完整章节目录和图片地址。
 
-修改已发布的源后，提高 Suwatte 的数字版本或 Venera 的语义版本；保持源 ID 不变，避免书架记录失去关联。公共接口变更放入对应的 `packages/<站点>`，阅读器特有修改放入对应的 `sources/` 目录。
+修改已发布的源后，提高 Suwatte 的数字版本、Venera 的语义版本或 Tachimanga 的 APK 版本及版本代码；保持源 ID 不变，避免书架记录失去关联。公共接口变更放入对应的 `packages/<站点>`，阅读器特有修改放入对应的 `sources/` 目录。Tachimanga 使用本地私钥签名、提交公共 APK、CI 重编译核对的方式发布。
 
 项目代码采用 MIT 许可。接口参考和依赖说明见各阅读器目录的文档。
