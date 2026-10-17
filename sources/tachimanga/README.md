@@ -40,7 +40,7 @@ CopyManga 大陆详情、章节分组和章节图片地址请求已加入 `reque
 
 首次发布和代码更新由维护者使用同一个仓库签名密钥构建。设置 `TACHIMANGA_KEYSTORE` 和 `TACHIMANGA_KEY_PASSWORD`，密钥别名为 `archettu`。密钥保存在仓库外，禁止提交密钥和密码。公共证书摘要见 `signing-fingerprint.txt`。
 
-构建会将签名 APK 保存到 `release/`。提交这个公共安装包后，CI 重新编译代码，比较 APK 中的 DEX、清单和资源，校验签名与公开证书摘要，再生成 `dist/index.min.json`、`repo.json` 和 APK 下载目录。代码变化但未重新签名时，比较失败，阻止发布旧安装包。CI 无需持有私钥。
+设置签名密钥时，构建会先执行 `clean`，再完整编译并将签名 APK 保存到 `release/`，避免增量编译产物与 CI 的全量编译不同。提交这个公共安装包后，CI 重新编译代码，比较 APK 中的 DEX、清单和资源，校验签名与公开证书摘要，再生成 `dist/index.min.json`、`repo.json` 和 APK 下载目录。代码变化但未重新签名时，比较失败，阻止发布旧安装包。CI 无需持有私钥。
 
 更新扩展时，同时提高 `build.gradle.kts` 和 `catalog.json` 的版本号及版本代码，更新网页下载链接，并提交新的签名 APK。保持五个图源 ID 不变。离线编译和协议测试不能替代 iPad 上的导入与阅读验证。
 

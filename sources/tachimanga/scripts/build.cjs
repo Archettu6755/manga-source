@@ -3,6 +3,11 @@ const path = require("node:path");
 const { spawnSync } = require("node:child_process");
 const root = path.resolve(__dirname, "..");
 const catalog = JSON.parse(fs.readFileSync(path.join(root, "catalog.json"), "utf8"));
+if (process.env.TACHIMANGA_KEYSTORE) {
+  // Signed releases must use a full build, matching the fresh CI checkout.
+  const clean = spawnSync(process.execPath, [path.join(__dirname, "gradle.cjs"), "clean"], { stdio: "inherit", env: process.env });
+  if (clean.status !== 0) process.exit(clean.status ?? 1);
+}
 const build = spawnSync(process.execPath, [path.join(__dirname, "gradle.cjs"), "assembleRelease"], { stdio: "inherit", env: process.env });
 if (build.status !== 0) process.exit(build.status ?? 1);
 const output = path.join(root, "dist");
