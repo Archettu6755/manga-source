@@ -16,10 +16,11 @@ import java.util.TimeZone
 class MangaDex : PersonalSource() {
     override val id = 790675500000000003L
     override val name = "MangaDex（日漫）· 杕"
-    override val lang = "en"
+    override val lang = "all"
     override val baseUrl = "https://mangadex.org"
     private val apiUrl = "https://api.mangadex.org"
-    private val language get() = prefs.getString("language", "en").let { if (it == "ja") "ja" else "en" }
+    private val language get() = prefs.getString("chapterLanguage", "all") ?: "all"
+    private fun languageParams(key: String) = if (language == "all") emptyList() else listOf(key to language)
     private val entries = listOf("popular" to "热门日漫", "latest" to "最近更新", "all" to "全部日漫", "newest" to "新上架", "popular-new" to "本月热门新作",
         "top-rated" to "评分排行", "tags" to "分类／标签", "seasonal" to "当季漫画", "recommended" to "官网推荐", "selfpublished" to "自主出版")
     private var cachedManga: Triple<String, Long, JSONObject>? = null
@@ -38,7 +39,7 @@ class MangaDex : PersonalSource() {
         return value.text(language).ifEmpty { value.text("en") }.ifEmpty { value.text("ja") }.ifEmpty { value.keys().asSequence().map { value.text(it) }.firstOrNull { it.isNotEmpty() }.orEmpty() }
     }
     private fun allowed(value: JSONObject): Boolean = value.getJSONObject("attributes").let { attributes ->
-        attributes.text("originalLanguage") == "ja" && (attributes.optJSONArray("availableTranslatedLanguages")?.let { array -> (0 until array.length()).map { array.optString(it) } } ?: emptyList()).contains(language)
+        attributes.text("originalLanguage") == "ja" && (language == "all" || (attributes.optJSONArray("availableTranslatedLanguages")?.let { array -> (0 until array.length()).map { array.optString(it) } } ?: emptyList()).contains(language))
     }
     private fun manga(value: JSONObject): SManga {
         MangaDexProtocol.requireJapanese(value)
@@ -71,8 +72,9 @@ class MangaDex : PersonalSource() {
         val offset = (page - 1) * 30
         if (offset >= 10_000) throw IOException("MangaDex 超出公开 API 的 10,000 条分页范围，请缩小筛选范围。")
         val sort = filters.pick("sort").ifBlank { if (keyword.isNotBlank()) "relevance" else when (entry) { "latest" -> "latestUploadedChapter"; "newest" -> "createdAt"; "top-rated" -> "rating"; else -> "followedCount" } }
-        val values = mutableListOf("originalLanguage[]" to "ja", "availableTranslatedLanguage[]" to language, "hasAvailableChapters" to "true", "limit" to minOf(30, 10_000 - offset).toString(), "offset" to offset.toString(),
+        val values = mutableListOf("originalLanguage[]" to "ja", "hasAvailableChapters" to "true", "limit" to minOf(30, 10_000 - offset).toString(), "offset" to offset.toString(),
             "order[$sort]" to filters.pick("direction", "desc"), "includes[]" to "cover_art", "includes[]" to "author", "includes[]" to "artist")
+        values.addAll(languageParams("availableTranslatedLanguage[]"))
         if (keyword.isNotBlank()) values.add("title" to keyword)
         if (entry == "popular-new") values.add("createdAtSince" to SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", Locale.US).apply { timeZone = TimeZone.getTimeZone("UTC") }.format(Date(System.currentTimeMillis() - 30L * 86_400_000)))
         filters.pick("status").takeIf { it.isNotBlank() }?.let { values.add("status[]" to it) }
@@ -105,7 +107,7 @@ class MangaDex : PersonalSource() {
         val seen = mutableSetOf<String>()
         var offset = 0
         while (true) {
-            val data = api("/manga/$id/feed", listOf("translatedLanguage[]" to language, "includeExternal" to "0", "limit" to "500", "offset" to offset.toString(), "order[volume]" to "asc", "order[chapter]" to "asc", "includes[]" to "scanlation_group"))
+            val data = api("/manga/$id/feed", languageParams("translatedLanguage[]") + listOf("includeExternal" to "0", "limit" to "500", "offset" to offset.toString(), "order[volume]" to "asc", "order[chapter]" to "asc", "includes[]" to "scanlation_group"))
             val batch = data.array("data")
             for (value in batch) {
                 if (!seen.add(value.getString("id"))) throw IOException("MangaDex 返回重复的章节分页。")
@@ -115,7 +117,7 @@ class MangaDex : PersonalSource() {
                 if (published > System.currentTimeMillis() || attr.optBoolean("isUnavailable")) continue
                 chapters.add(SChapter.create().apply {
                     url = "/chapter/${value.getString("id")}?manga=$id"
-                    name = listOf(attr.text("volume").takeIf { it.isNotBlank() }?.let { "Vol.$it" }.orEmpty(), attr.text("chapter").takeIf { it.isNotBlank() }?.let { "Ch.$it" }.orEmpty(), attr.text("title")).filter { it.isNotBlank() }.joinToString(" · ").ifBlank { "未编号章节" }
+                    name = listOf(attr.text("volume").takeIf { it.isNotBlank() }?.let { "Vol.$it" }.orEmpty(), attr.text("chapter").takeIf { it.isNotBlank() }?.let { "Ch.$it" }.orEmpty(), attr.text("title"), "[${attr.text("translatedLanguage")}]").filter { it.isNotBlank() }.joinToString(" · ").ifBlank { "未编号章节" }
                     chapter_number = attr.text("chapter").toFloatOrNull() ?: -1f; date_upload = published
                     scanlator = value.array("relationships").filter { it.text("type") == "scanlation_group" }.joinToString { it.optJSONObject("attributes")?.text("name").orEmpty() }
                 })
@@ -152,7 +154,7 @@ class MangaDex : PersonalSource() {
         object : Filter.Group<TagChoice>("标签（包含／排除）", GeneratedTags.values.map { TagChoice(it.first, it.second) }) {}
     )
     override fun setupPreferenceScreen(screen: PreferenceScreen) {
-        choice(screen, "language", "章节语言", listOf("en" to "英文译文", "ja" to "日语原文"), "en")
+        choice(screen, "chapterLanguage", "章节语言", listOf("all" to "不限译文语言", "zh" to "简体中文", "zh-hk" to "繁体中文", "en" to "英文译文", "ja" to "日语原文"), "all")
         choice(screen, "quality", "图片质量", listOf("normal" to "原图", "saver" to "节省流量"), "normal")
     }
 }

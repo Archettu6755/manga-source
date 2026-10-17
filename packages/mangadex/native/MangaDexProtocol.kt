@@ -17,7 +17,7 @@ object MangaDexProtocol {
             SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", Locale.US).apply { timeZone = TimeZone.getTimeZone("UTC") }.parse(it)?.time
         } ?: 0L
         val relationships = chapter.getJSONArray("relationships")
-        return attributes.optString("translatedLanguage") == language && language in listOf("en", "ja") &&
+        return (language == "all" || attributes.optString("translatedLanguage") == language) &&
             (attributes.isNull("externalUrl") || attributes.optString("externalUrl").isBlank()) && attributes.optInt("pages") > 0 &&
             !attributes.optBoolean("isUnavailable") && published <= System.currentTimeMillis() &&
             (0 until relationships.length()).any { relationships.getJSONObject(it).let { relation -> relation.optString("type") == "manga" && relation.optString("id") == mangaId } }

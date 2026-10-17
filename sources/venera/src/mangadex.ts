@@ -1,4 +1,4 @@
-import { API, WEBSITE, CURATED_LISTS, cover, localized, pageUrls, query, readCollection, readable, readReply, requireJapanese,
+import { API, WEBSITE, CHAPTER_LANGUAGES, CURATED_LISTS, cover, languageParams, localized, pageUrls, query, readCollection, readable, readReply, requireJapanese,
   type Collection, type Language, type Manga, type MangaChapter, type MangaTag, type Relationship } from "@archettu/mangadex";
 import tagSnapshot from "./mangadex-tags.json";
 import { category, choice, choiceId, info, json, list, pageNumber, part, Transport,
@@ -28,9 +28,9 @@ export function createSource(source: SourceStore): SourceConfig {
   let cachedTags: MangaTag[] | undefined;
   const curatedCache = new Map<string, { at: number; mangas: Manga[] }>();
   function language(): Language {
-    const value = source.loadSetting("language") ?? "en";
-    if (value !== "en" && value !== "ja") throw new Error("此源仅支持英文或日语章节。");
-    return value;
+    const value = source.loadSetting("chapterLanguage") ?? "all";
+    if (!CHAPTER_LANGUAGES.some(option => option.id === value)) throw new Error("请选择有效的章节语言。");
+    return value as Language;
   }
   async function get<T>(path: string, values: [string, string | number][] = []): Promise<T> {
     const response = await transport.request("GET", `${API}${path}${values.length ? `?${query(values)}` : ""}`);
@@ -49,7 +49,7 @@ export function createSource(source: SourceStore): SourceConfig {
     }
     return cachedTags;
   }
-  function allowed(manga: Manga) { return manga.attributes?.originalLanguage === "ja" && manga.attributes.availableTranslatedLanguages?.includes(language()); }
+  function allowed(manga: Manga) { return manga.attributes?.originalLanguage === "ja" && (language() === "all" || manga.attributes.availableTranslatedLanguages?.includes(language())); }
   async function listing(key: string, options: string[], page: number, keyword = ""): Promise<ComicList> {
     pageNumber(page);
     const offset = (page - 1) * 30;
@@ -58,7 +58,7 @@ export function createSource(source: SourceStore): SourceConfig {
     const defaultSort = keyword ? "relevance" : key === "latest" ? "latestUploadedChapter" : key === "newest" ? "createdAt" : key === "top-rated" ? "rating" : "followedCount";
     const sort = !options[0] || options[0] === "default" ? defaultSort : options[0];
     if (!SORTS.some(value => value.split("-")[0] === sort)) throw new Error("不支持的漫画排序。");
-    const values: [string, string | number][] = [...INCLUDES, ["originalLanguage[]", "ja"], ["availableTranslatedLanguage[]", language()],
+    const values: [string, string | number][] = [...INCLUDES, ["originalLanguage[]", "ja"], ...languageParams("availableTranslatedLanguage[]", language()),
       ["hasAvailableChapters", "true"], ["limit", limit], ["offset", offset], [`order[${sort}]`, options[1] === "asc" ? "asc" : "desc"]];
     if (keyword) values.push(["title", keyword]);
     if (key === "popular-new") values.push(["createdAtSince", new Date(Date.now() - 30 * 86_400_000).toISOString().slice(0, 19)]);
@@ -98,7 +98,7 @@ export function createSource(source: SourceStore): SourceConfig {
       const found = new Map<string, Manga>();
       for (let offset = 0; offset < ids.length; offset += 100) {
         const result = readCollection(await get<Collection<Manga>>("/manga", [...INCLUDES, ["limit", 100],
-          ["originalLanguage[]", "ja"], ["availableTranslatedLanguage[]", language()], ["hasAvailableChapters", "true"],
+          ["originalLanguage[]", "ja"], ...languageParams("availableTranslatedLanguage[]", language()), ["hasAvailableChapters", "true"],
           ...ids.slice(offset, offset + 100).map(id => ["ids[]", id] as [string, string])]));
         for (const manga of result.data) if (allowed(manga)) found.set(manga.id, manga);
       }
@@ -127,7 +127,7 @@ export function createSource(source: SourceStore): SourceConfig {
     while (true) {
       if (offset >= 10_000) throw new Error("MangaDex 章节数超过公开 API 上限，目录不完整。");
       const result = readCollection(await get<Collection<MangaChapter>>(`/manga/${encodeURIComponent(id)}/feed`, [
-        ["limit", Math.min(500, 10_000 - offset)], ["offset", offset], ["translatedLanguage[]", language()], ["order[chapter]", "asc"], ["order[volume]", "asc"],
+        ["limit", Math.min(500, 10_000 - offset)], ["offset", offset], ...languageParams("translatedLanguage[]", language()), ["order[chapter]", "asc"], ["order[volume]", "asc"],
         ["order[publishAt]", "asc"], ["includes[]", "scanlation_group"], ["includeEmptyPages", 0], ["includeExternalUrl", 0],
         ["includeFuturePublishAt", 0], ["includeUnavailable", 0],
       ]));
@@ -138,14 +138,14 @@ export function createSource(source: SourceStore): SourceConfig {
         if (!readable(chapter, language())) continue;
         const a = chapter.attributes;
         const group = chapter.relationships?.filter(entry => entry.type === "scanlation_group").map(entry => entry.attributes?.name).filter(Boolean).join(" / ");
-        chapters[chapter.id] = [a.volume ? `Vol. ${a.volume}` : "", a.chapter ? `Ch. ${a.chapter}` : "One-shot", a.title, group].filter(Boolean).join(" · ");
+        chapters[chapter.id] = [a.volume ? `Vol. ${a.volume}` : "", a.chapter ? `Ch. ${a.chapter}` : "One-shot", a.title, `[${a.translatedLanguage}]`, group].filter(Boolean).join(" · ");
       }
       offset += result.data.length;
       if (offset >= result.total) return chapters;
     }
   }
   return {
-    ...info("mangadex", "MangaDex（日漫）"), category: category("MangaDex（日漫）· Archettu", FEEDS.filter(([key]) => key !== "tags")),
+    ...info("mangadex", "MangaDex（日漫）"), version: "1.0.1", category: category("MangaDex（日漫）· Archettu", FEEDS.filter(([key]) => key !== "tags")),
     explore: FEEDS.map(([key, title]) => ({ title: `MangaDex · ${title}`, type: key === "tags" ? "multiPartPage" : "multiPageComicList",
       load: async page => key === "tags" ? (await tags()).map(tag => part(`tag:${tag.id}`, `${tag.attributes.group} · ${localized(tag.attributes.name, language())}`)) : browse(key, [], page) })),
     categoryComics: { load: (name, key, values, page) => browse(key ?? name, values, page), optionLoader: async (_name, key) => {
@@ -178,7 +178,7 @@ export function createSource(source: SourceStore): SourceConfig {
       },
     },
     settings: {
-      language: { title: "章节语言", type: "select", default: "en", options: [{ value: "en", text: "英文译文" }, { value: "ja", text: "日语原文" }] },
+      chapterLanguage: { title: "章节语言", type: "select", default: "all", options: CHAPTER_LANGUAGES.map(option => ({ value: option.id, text: option.title })) },
       dataSaver: { title: "节省图片流量", type: "switch", default: false },
     },
   };

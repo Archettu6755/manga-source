@@ -10,7 +10,7 @@ test("scripts follow the original loader, register unique keys and preserve ever
     assert.match(scriptFor(id).split("\n")[0], /^class [a-z]+ extends ComicSource \{$/i);
     const { source, context } = fixture(id);
     assert.equal(source.key, `archettu_${id}`);
-    assert.equal(source.version, id === "copymanga" ? "1.0.1" : "1.0.0");
+    assert.equal(source.version, id === "komiic" ? "1.0.0" : "1.0.1");
     assert.equal(source.url, `https://archettu6755.github.io/manga-source/venera/${id}.js`);
     assert.equal(source.explore.length, count);
     assert.equal(new Set(source.explore.map(page => page.title)).size, count);
@@ -188,25 +188,30 @@ test("Komiic quota failures stop without retry", async () => {
   await assert.rejects(source.comic.loadEp("comic", "chapter"), /额度/);
   assert.equal(calls.length, 1);
 });
-test("MangaDex every listing keeps Japanese originals and selected chapter language", async () => {
+test("MangaDex every listing defaults to unrestricted translations and keeps Japanese originals", async () => {
   const { source, calls, settings } = fixture("mangadex", call => response(collection([japanese,
     { ...japanese, id: "western", attributes: { ...japanese.attributes, originalLanguage: "en" } },
-    { ...japanese, id: "korean", attributes: { ...japanese.attributes, originalLanguage: "ko" } }], 3, Number(new URL(call.url).searchParams.get("offset") ?? 0))));
+    { ...japanese, id: "korean", attributes: { ...japanese.attributes, originalLanguage: "ko" } },
+    { ...japanese, id: "chinese", attributes: { ...japanese.attributes, availableTranslatedLanguages: ["zh"] } }], 4, Number(new URL(call.url).searchParams.get("offset") ?? 0))), { language: "en" });
   for (const index of [0, 1, 2, 3, 4, 5]) {
     const result = await source.explore[index].load(1) as ComicList;
-    assert.deepEqual(plain(result.comics.map(comic => comic.id)), ["manga"]);
+    assert.deepEqual(plain(result.comics.map(comic => comic.id)), ["manga", "chinese"]);
     const params = new URL(calls.at(-1)!.url).searchParams;
     assert.equal(params.get("originalLanguage[]"), "ja");
-    assert.equal(params.get("availableTranslatedLanguage[]"), "en");
+    assert.equal(params.get("availableTranslatedLanguage[]"), null);
   }
-  settings.language = "ja";
+  settings.chapterLanguage = "ja";
   await source.explore[0].load(2);
   assert.equal(new URL(calls.at(-1)!.url).searchParams.get("availableTranslatedLanguage[]"), "ja");
-  settings.language = "ko";
-  await assert.rejects(source.explore[0].load(1), /仅支持/);
+  settings.chapterLanguage = "zh";
+  const chinese = await source.explore[0].load(1) as ComicList;
+  assert.deepEqual(plain(chinese.comics.map(comic => comic.id)), ["chinese"]);
+  assert.equal(new URL(calls.at(-1)!.url).searchParams.get("availableTranslatedLanguage[]"), "zh");
+  settings.chapterLanguage = "invalid";
+  await assert.rejects(source.explore[0].load(1), /有效/);
 });
 test("MangaDex advanced search encodes multiple tags, status and rating without dropping language restrictions", async () => {
-  const { source, calls } = fixture("mangadex", () => response(collection([japanese])));
+  const { source, calls } = fixture("mangadex", () => response(collection([japanese])), { chapterLanguage: "en" });
   const ids = ["391b0423-d847-456f-aff0-8b0cfc03066b", "423e2eae-a7a2-4a8b-ac03-a8351462d71d"];
   await source.search.load("漫画", ["rating", "asc", "completed", "safe", "OR", JSON.stringify(ids), JSON.stringify([ids[0]])], 1);
   const params = new URL(calls[0].url).searchParams;
@@ -272,8 +277,10 @@ test("MangaDex directory follows actual page size and excludes unreadable chapte
       { ...chapter, id: "ko", attributes: { ...chapter.attributes, translatedLanguage: "ko" } }], 3, offset));
   });
   const details = await source.comic.loadInfo("manga");
-  assert.deepEqual(Object.keys(details.chapters), ["chapter"]);
+  assert.deepEqual(Object.keys(details.chapters), ["chapter", "ko"]);
+  assert.match(details.chapters.ko, /\[ko\]/);
   assert.deepEqual(calls.filter(call => call.url.includes("/feed")).map(call => new URL(call.url).searchParams.get("offset")), ["0", "1"]);
+  assert.ok(calls.filter(call => call.url.includes("/feed")).every(call => !new URL(call.url).searchParams.has("translatedLanguage[]")));
 });
 test("MangaDex images validate chapter ownership, language, page count and saver ordering", async () => {
   const { source, settings } = fixture("mangadex", call => response(call.url.includes("/chapter/") ? { result: "ok", data: chapter }
@@ -282,7 +289,7 @@ test("MangaDex images validate chapter ownership, language, page count and saver
   assert.deepEqual(plain((await source.comic.loadEp("manga", "chapter")).images), ["https://images.example/data/hash/2.jpg", "https://images.example/data/hash/1.jpg"]);
   settings.dataSaver = true;
   assert.deepEqual(plain((await source.comic.loadEp("manga", "chapter")).images), ["https://images.example/data-saver/hash/2s.jpg", "https://images.example/data-saver/hash/1s.jpg"]);
-  settings.language = "ja";
+  settings.chapterLanguage = "ja";
   await assert.rejects(source.comic.loadEp("manga", "chapter"), /当前语言/);
 });
 test("MangaDex chapter truncation and HTTP 429 stop rather than returning partial data", async () => {

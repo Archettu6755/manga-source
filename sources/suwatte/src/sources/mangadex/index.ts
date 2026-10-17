@@ -8,7 +8,7 @@ import {
   type SearchRequest, type SourceInfo, type UIForm, type ItemPageResponse, type SortOptions,
 } from "@suwatte/toolchain/types";
 import {
-  API, WEBSITE, CURATED_LISTS, chapterNumber, cover, localized, pageUrls, query, readCollection, readable, readReply, requireJapanese,
+  API, WEBSITE, CHAPTER_LANGUAGES, CURATED_LISTS, chapterNumber, cover, languageParams, localized, pageUrls, query, readCollection, readable, readReply, requireJapanese,
   type Collection, type Language, type Manga, type MangaChapter, type MangaTag, type Relationship,
 } from "@archettu/mangadex";
 
@@ -16,8 +16,8 @@ const INCLUDES: [string, string][] = [["includes[]", "cover_art"], ["includes[]"
 
 export default class MangaDex implements Delegate {
   static info: SourceInfo = {
-    id: "en.mangadex", name: "MangaDex（日漫）· Archettu", version: 2, website: WEBSITE,
-    languages: ["en", "ja"], rating: ContentRating.UNKNOWN, minSupportedAppVersion: "7.0.0",
+    id: "en.mangadex", name: "MangaDex（日漫）· Archettu", version: 3, website: WEBSITE,
+    languages: ["zh-Hans", "zh-Hant", "en", "ja"], rating: ContentRating.UNKNOWN, minSupportedAppVersion: "7.0.0",
   };
   private readonly api = new HttpClient({ timeout: 20_000, retries: 0, rateLimit: { permits: 1, period: 0.5 }, validateStatus: () => true });
   readonly client = new HttpClient({ timeout: 20_000, retries: 0 });
@@ -26,7 +26,7 @@ export default class MangaDex implements Delegate {
   private curatedCache?: { key: string; language: Language; at: number; mangas: Manga[] };
 
   getConfiguration() { return { useClientForImageRequests: true }; }
-  private async language(): Promise<Language> { return await ObjectStore.string("mangadex.language") === "ja" ? "ja" : "en"; }
+  private async language(): Promise<Language> { return (await ObjectStore.string("mangadex.chapterLanguage") ?? "all") as Language; }
   private async get<T>(path: string, params: [string, string | number][] = []): Promise<T> {
     const response = await this.api.get(`${API}${path}${params.length ? `?${query(params)}` : ""}`);
     if (response.status !== 200) return readReply<T>(response.status, null);
@@ -95,7 +95,7 @@ export default class MangaDex implements Delegate {
     const sort = request.sort?.key ?? (title ? "relevance" : key === "latest" ? "latestUploadedChapter" : key === "newest" ? "createdAt" : key === "top-rated" ? "rating" : "followedCount");
     if (!(await this.getSortOptions()).options.some(option => option.id === sort)) throw new Error("不支持的漫画排序。");
     const params: [string, string | number][] = [
-      ...INCLUDES, ["originalLanguage[]", "ja"], ["availableTranslatedLanguage[]", language], ["hasAvailableChapters", "true"],
+      ...INCLUDES, ["originalLanguage[]", "ja"], ...languageParams("availableTranslatedLanguage[]", language), ["hasAvailableChapters", "true"],
       ["limit", 30], ["offset", offset], [`order[${sort}]`, request.sort?.ascending ? "asc" : "desc"],
     ];
     if (title) params.push(["title", title]);
@@ -122,7 +122,7 @@ export default class MangaDex implements Delegate {
     const data = readCollection(await this.get<Collection<Manga>>("/manga", params));
     if (data.offset !== offset) throw new Error("MangaDex 返回了错误的列表分页。");
     return { items: data.data.filter(manga => manga.attributes?.originalLanguage === "ja" &&
-      manga.attributes.availableTranslatedLanguages?.includes(language)).map(manga => this.item(manga, language)),
+      (language === "all" || manga.attributes.availableTranslatedLanguages?.includes(language))).map(manga => this.item(manga, language)),
       total: data.total, isLastPage: !data.data.length || offset + data.data.length >= data.total };
   }
   async getSearchResults(request: SearchRequest, page: number): Promise<PagedItemList> {
@@ -145,9 +145,9 @@ export default class MangaDex implements Delegate {
       const mangas = new Map<string, Manga>();
       for (let offset = 0; offset < ids.length; offset += 100) {
         const result = readCollection(await this.get<Collection<Manga>>("/manga", [...INCLUDES, ["limit", 100],
-          ["originalLanguage[]", "ja"], ["availableTranslatedLanguage[]", language], ["hasAvailableChapters", "true"],
+          ["originalLanguage[]", "ja"], ...languageParams("availableTranslatedLanguage[]", language), ["hasAvailableChapters", "true"],
           ...ids.slice(offset, offset + 100).map(id => ["ids[]", id] as [string, string])]));
-        for (const manga of result.data) if (manga.attributes.originalLanguage === "ja" && manga.attributes.availableTranslatedLanguages?.includes(language)) mangas.set(manga.id, manga);
+        for (const manga of result.data) if (manga.attributes.originalLanguage === "ja" && (language === "all" || manga.attributes.availableTranslatedLanguages?.includes(language))) mangas.set(manga.id, manga);
       }
       this.curatedCache = { key, language, at: Date.now(), mangas: ids.flatMap(id => mangas.has(id) ? [mangas.get(id)!] : []) };
     }
@@ -185,7 +185,7 @@ export default class MangaDex implements Delegate {
     while (true) {
       if (offset >= 10_000) throw new Error("MangaDex 章节数超过公开 API 分页上限，目录未返回完整。");
       const data = readCollection(await this.get<Collection<MangaChapter>>(`/manga/${encodeURIComponent(contentId)}/feed`, [
-        ["limit", 500], ["offset", offset], ["translatedLanguage[]", language], ["order[chapter]", "asc"], ["order[volume]", "asc"],
+        ["limit", 500], ["offset", offset], ...languageParams("translatedLanguage[]", language), ["order[chapter]", "asc"], ["order[volume]", "asc"],
         ["order[publishAt]", "asc"], ["includes[]", "scanlation_group"], ["includeEmptyPages", 0], ["includeExternalUrl", 0],
         ["includeFuturePublishAt", 0], ["includeUnavailable", 0],
       ]));
@@ -206,7 +206,8 @@ export default class MangaDex implements Delegate {
       return { id: chapter.id, index, number: chapterNumber(chapter.attributes.chapter),
         volume: chapterNumber(chapter.attributes.volume) >= 0 ? chapterNumber(chapter.attributes.volume) : undefined,
         title: [chapter.attributes.title || (chapter.attributes.chapter ? `Chapter ${chapter.attributes.chapter}` : "One-shot"), groups].filter(Boolean).join(" · "),
-        language, date: date && Number.isFinite(date.getTime()) ? date : undefined, webUrl: `${WEBSITE}/chapter/${encodeURIComponent(chapter.id)}` };
+        language: chapter.attributes.translatedLanguage === "zh" ? "zh-Hans" : chapter.attributes.translatedLanguage === "zh-hk" ? "zh-Hant" : chapter.attributes.translatedLanguage,
+        date: date && Number.isFinite(date.getTime()) ? date : undefined, webUrl: `${WEBSITE}/chapter/${encodeURIComponent(chapter.id)}` };
     });
   }
   async getChapterPages(contentId: string, chapterId: string): Promise<ChapterPage[]> {
@@ -224,13 +225,13 @@ export default class MangaDex implements Delegate {
   }
   async getSettingsPage(): Promise<UIForm> {
     return { sections: [{ header: "日漫阅读", footer: "仅收录原始语言为日语的作品。修改章节语言后请刷新目录。部分章节因授权限制仅在外站提供，本源不显示这类章节。", views: [
-      UIPicker({ id: "language", title: "章节语言", currentValue: await this.language(), options: [{ id: "en", title: "英文译文" }, { id: "ja", title: "日语原文" }] }),
+      UIPicker({ id: "language", title: "章节语言", currentValue: await this.language(), options: [...CHAPTER_LANGUAGES] }),
       UIToggle({ id: "dataSaver", title: "节省图片流量", currentValue: Boolean(await ObjectStore.get("mangadex.dataSaver")) }),
     ] }] };
   }
   async onFormSubmitted(_id: string, data: PopulatedForm): Promise<void> {
-    if (data.language !== undefined && data.language !== "en" && data.language !== "ja") throw new Error("此源仅支持英文或日语章节。");
-    if (typeof data.language === "string") await ObjectStore.set("mangadex.language", data.language);
+    if (data.language !== undefined && !CHAPTER_LANGUAGES.some(option => option.id === data.language)) throw new Error("请选择有效的章节语言。");
+    if (typeof data.language === "string") await ObjectStore.set("mangadex.chapterLanguage", data.language);
     if (typeof data.dataSaver === "boolean") await ObjectStore.set("mangadex.dataSaver", data.dataSaver);
     this.lastManga = undefined;
     this.curatedCache = undefined;

@@ -24,7 +24,7 @@ https://archettu6755.github.io/manga-source/venera/index.json
 
 ## Tachimanga 安装
 
-在 App Store 版 Tachimanga 的「浏览 → 扩展 → ＋ → 扩展仓库」中添加以下地址，再安装「杕的自用漫画源」。一个 APK 提供三个图源，语言筛选启用中文和英文。
+在 App Store 版 Tachimanga 的「浏览 → 扩展 → ＋ → 扩展仓库」中添加以下地址，再安装「杕的自用漫画源」。一个 APK 提供三个图源，图源语言筛选启用中文和多语言（Multi）。
 
 ```text
 https://archettu6755.github.io/manga-source/tachimanga/index.min.json
@@ -36,7 +36,7 @@ https://archettu6755.github.io/manga-source/tachimanga/index.min.json
 | --- | --- | --- |
 | 拷贝漫画 · Archettu | 中文漫画 | 官网入口、大陆／海外线路、API 域名与刷新、搜索接口、账号登录 |
 | Komiic · Archettu | 以繁体中文为主的漫画 | 卷与章节筛选、账号登录 |
-| MangaDex（日漫）· Archettu | 原始语言为日语的日本漫画，默认英文译文 | 英文或日语章节、节省图片流量 |
+| MangaDex（日漫）· Archettu | 原始语言为日语的日本漫画，不默认译文语言 | 默认不限；可选简体中文、繁体中文、英文或日语，支持节省图片流量 |
 
 MangaDex 的原始语言筛选同时作用于列表、详情、目录和图片读取。英文翻译的韩漫与欧美原创漫画不会出现在这个源中。外站章节、未发布章节和不可用章节不列入目录。
 

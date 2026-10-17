@@ -1,6 +1,16 @@
 export const API = "https://api.mangadex.org";
 export const WEBSITE = "https://mangadex.org";
-export type Language = "en" | "ja";
+export const CHAPTER_LANGUAGES = [
+  { id: "all", title: "不限译文语言" },
+  { id: "zh", title: "简体中文" },
+  { id: "zh-hk", title: "繁体中文" },
+  { id: "en", title: "英文译文" },
+  { id: "ja", title: "日语原文" },
+] as const;
+export type Language = typeof CHAPTER_LANGUAGES[number]["id"];
+export function languageParams(key: "availableTranslatedLanguage[]" | "translatedLanguage[]", language: Language): [string, string][] {
+  return language === "all" ? [] : [[key, language]];
+}
 export const CURATED_LISTS = [
   { id: "seasonal", title: "当季漫画", listId: "68ab4f4e-6f01-4898-9038-c5eee066be27" },
   { id: "recommended", title: "官网推荐", listId: "805ba886-dd99-4aa4-b460-4bd7c7b71352" },
@@ -32,7 +42,7 @@ export function requireJapanese(manga: Manga): Manga {
   return manga;
 }
 export function readable(chapter: MangaChapter, language: Language): boolean {
-  return chapter.attributes?.translatedLanguage === language && chapter.attributes.pages > 0 &&
+  return (language === "all" || chapter.attributes?.translatedLanguage === language) && chapter.attributes?.pages > 0 &&
     !chapter.attributes.externalUrl && !chapter.attributes.isUnavailable &&
     (!chapter.attributes.publishAt || new Date(chapter.attributes.publishAt).getTime() <= Date.now());
 }

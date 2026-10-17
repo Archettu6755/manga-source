@@ -68,14 +68,14 @@ test("MangaDex new and curated entrances keep the original-language restriction"
   await source.getItemList({ key: "newest" }, 1);
   assert.equal(new URL(calls.at(-1)!.url).searchParams.get("order[createdAt]"), "desc");
 });
-test("MangaDex advanced filters are combined with the mandatory Japanese/English filters", async () => {
+test("MangaDex advanced filters preserve the mandatory Japanese-original filter", async () => {
   const { source, calls } = fixture(MangaDex, () => ({ body: { result: "ok", offset: 0, total: 1, data: [manga] } }));
   await source.getSearchResults({ filters: { tags: { include: ["a", "b"], exclude: ["c"] }, tagsMode: "OR", status: "completed", rating: "safe" }, sort: { key: "rating", ascending: true } }, 1);
   const params = new URL(calls[0].url).searchParams;
   assert.deepEqual(params.getAll("includedTags[]"), ["a", "b"]);
   assert.deepEqual(params.getAll("excludedTags[]"), ["c"]);
   assert.equal(params.get("originalLanguage[]"), "ja");
-  assert.equal(params.get("availableTranslatedLanguage[]"), "en");
+  assert.equal(params.get("availableTranslatedLanguage[]"), null);
   assert.equal(params.get("status[]"), "completed");
   assert.equal(params.get("order[rating]"), "asc");
 });

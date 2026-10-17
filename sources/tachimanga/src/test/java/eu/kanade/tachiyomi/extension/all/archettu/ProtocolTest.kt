@@ -31,9 +31,16 @@ class ProtocolTest {
         assertSame(manga, MangaDexProtocol.requireJapanese(manga))
         val chapter = JSONObject("""{"attributes":{"translatedLanguage":"en","pages":2},"relationships":[{"type":"manga","id":"japanese"}]}""")
         assertTrue(MangaDexProtocol.readableChapter(chapter, "japanese", "en"))
+        assertTrue(MangaDexProtocol.readableChapter(chapter, "japanese", "all"))
         assertFalse(MangaDexProtocol.readableChapter(chapter, "other", "en"))
         assertFalse(MangaDexProtocol.readableChapter(chapter, "japanese", "ko"))
+        for (language in listOf("zh", "zh-hk", "en", "ja", "fr")) {
+            chapter.getJSONObject("attributes").put("translatedLanguage", language)
+            assertTrue(MangaDexProtocol.readableChapter(chapter, "japanese", "all"))
+            assertTrue(MangaDexProtocol.readableChapter(chapter, "japanese", language))
+            assertFalse(MangaDexProtocol.readableChapter(chapter, "other", "all"))
+        }
         chapter.getJSONObject("attributes").put("externalUrl", "https://external.example/chapter")
-        assertFalse(MangaDexProtocol.readableChapter(chapter, "japanese", "en"))
+        assertFalse(MangaDexProtocol.readableChapter(chapter, "japanese", "all"))
     }
 }

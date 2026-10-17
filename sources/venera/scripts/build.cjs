@@ -18,7 +18,7 @@ const notices = dependencies.map(name => {
 const descriptions = {
   copymanga: "中文漫画；完整浏览目录、专题、题材、男频和女频排行榜。",
   komiic: "以繁体中文为主；分类、标签、作者、原作、角色及推荐目录。",
-  mangadex: "仅日漫；默认英文译文，可选日语，支持公开书单和标签筛选。",
+  mangadex: "原始语言为日语的日本漫画，不默认译文语言；支持语言筛选、公开书单和标签筛选。",
 };
 fs.mkdirSync(output, { recursive: true });
 const catalog = sources.map(id => {
