@@ -18,7 +18,7 @@ export default class CopyManga implements Delegate {
   static info: SourceInfo = {
     id: "zh.copymanga",
     name: "拷贝漫画 · Archettu",
-    version: 5,
+    version: 6,
     website: WEBSITE,
     languages: ["zh-Hans", "zh-Hant"],
     rating: ContentRating.UNKNOWN,

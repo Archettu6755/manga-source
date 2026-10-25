@@ -21,6 +21,8 @@
 
 ## Komiic
 
+连接设置提供 `komiic.com` 与大陆入口 `komiic.cc`，以下入口 ID 在两站保持不变。切换入口会刷新分类缓存，封面、作品链接和图片地址使用所选入口；登录会话按域名分开保存。
+
 | 入口 ID | 显示名称 | GraphQL 字段 |
 | --- | --- | --- |
 | latest / popular | 最近更新／热门漫画 | `recentUpdate` / `hotComics` |

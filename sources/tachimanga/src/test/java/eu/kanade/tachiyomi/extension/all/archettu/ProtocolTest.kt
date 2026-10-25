@@ -1,6 +1,8 @@
 package eu.kanade.tachiyomi.extension.all.archettu
 
 import archettu.protocol.copymanga.CopyProtocol
+import archettu.protocol.komiic.KomiicProtocol
+import archettu.protocol.core.SourceFailures
 import archettu.protocol.mangadex.MangaDexProtocol
 import archettu.protocol.manhuagui.ManhuaguiProtocol
 import archettu.protocol.zaimanhua.ZaimanhuaProtocol
@@ -11,6 +13,25 @@ import java.io.IOException
 
 class ProtocolTest {
     private val sites = JSONObject(javaClass.getResource("/sites.json")!!.readText())
+    @Test fun komiicEntrancesKeepAccountRequestsAndImagesOnTheirSelectedOrigin() {
+        assertEquals("https://komiic.com", KomiicProtocol.website(null))
+        assertEquals("https://komiic.cc", KomiicProtocol.website("https://komiic.cc"))
+        assertThrows(IOException::class.java) { KomiicProtocol.website("https://komiic.cc.evil.invalid") }
+        assertEquals("https://public.komiic.cc/a.jpg?key=fixture", KomiicProtocol.url("https://public.komiic.com/a.jpg?key=fixture", "https://komiic.cc"))
+        assertEquals("https://komiic.com.evil.invalid/api/image/a", KomiicProtocol.url("https://komiic.com.evil.invalid/api/image/a", "https://komiic.cc"))
+        assertTrue(KomiicProtocol.isImage("https://komiic.cc/api/image/a", "https://komiic.cc"))
+        assertFalse(KomiicProtocol.isImage("https://komiic.com/api/image/a", "https://komiic.cc"))
+        assertFalse(KomiicProtocol.isAccountRequest("https://public.komiic.cc/a.jpg"))
+        assertFalse(KomiicProtocol.isAccountRequest("https://komiic.cc.evil.invalid/api/query"))
+        assertTrue(KomiicProtocol.isAccountRequest("https://komiic.cc/auth/refresh"))
+    }
+    @Test fun sourceErrorsKeepRestrictionsSeparateFromConnectionFailures() {
+        val limited = SourceFailures.http(403, "Komiic")
+        assertTrue(limited.message!!.contains("访问受限"))
+        assertSame(limited, SourceFailures.connection(limited, "komiic.cc"))
+        assertTrue(SourceFailures.connection(java.net.SocketTimeoutException(), "marketing.aiacgn.com").message!!.contains("大陆参数服务"))
+        assertTrue(SourceFailures.http(402, "Komiic").message!!.contains("额度"))
+    }
     @Test fun copyRequestIdsAreRequiredOnlyForMainlandProtectedEndpoints() {
         for (path in listOf("comic2/test", "comic/test/group/default/chapters", "comic/test/chapter2/chapter")) {
             assertTrue(CopyProtocol.needsRequestId(path, "1")); assertFalse(CopyProtocol.needsRequestId(path, "0"))

@@ -1,7 +1,7 @@
 import { load, type CheerioAPI } from "cheerio/slim";
 import JSON5 from "json5";
 import LZString from "lz-string";
-import { options, status, chapterNumber, numericId, type Site, type Filter, type Manga, type MangaList, type Details, type Request, type Section } from "@archettu/manga-core";
+import { httpError, options, status, chapterNumber, numericId, type Site, type Filter, type Manga, type MangaList, type Details, type Request, type Section } from "@archettu/manga-core";
 
 export const WEBSITE = "https://www.manhuagui.com";
 export const IMAGE_SERVERS = ["https://i.hamreus.com", "https://cf.hamreus.com", "https://us.hamreus.com"];
@@ -108,7 +108,7 @@ export class Manhuagui implements Site {
     const headers: Record<string, string> = this.imageHeaders();
     if (await this.setting("adult") === "true") headers.Cookie = "isAdult=1";
     const response = await this.request(`${WEBSITE}${path}`, headers);
-    if (response.status !== 200) throw new Error(`漫画柜请求失败（HTTP ${response.status}），请先在网站核对访问提示。`);
+    if (response.status !== 200) throw httpError(response.status, "漫画柜");
     return response.body;
   }
   async browse(key: string, page: number, filters: Record<string, string> = {}): Promise<MangaList> {

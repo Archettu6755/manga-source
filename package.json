@@ -14,7 +14,8 @@
     "serve:suwatte": "npm run build:protocols && npm run serve -w @archettu/suwatte-sources",
     "smoke:suwatte": "npm run build:protocols && npm run smoke -w @archettu/suwatte-sources --",
     "smoke:browse": "npm run build:protocols && npm run smoke:browse -w @archettu/suwatte-sources --",
-    "smoke:venera": "npm run build:protocols && npm run smoke -w @archettu/venera-sources --"
+    "smoke:venera": "npm run build:protocols && npm run smoke -w @archettu/venera-sources --",
+    "diagnose": "npm run build:protocols && node scripts/diagnose.cjs"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",

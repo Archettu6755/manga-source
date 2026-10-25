@@ -12,11 +12,12 @@ import {
   type Collection, type Language, type Manga, type MangaChapter, type MangaTag, type Relationship,
 } from "@archettu/mangadex";
 
+import { networkRequest } from "../../network";
 const INCLUDES: [string, string][] = [["includes[]", "cover_art"], ["includes[]", "author"], ["includes[]", "artist"]];
 
 export default class MangaDex implements Delegate {
   static info: SourceInfo = {
-    id: "en.mangadex", name: "MangaDex（日漫）· Archettu", version: 3, website: WEBSITE,
+    id: "en.mangadex", name: "MangaDex（日漫）· Archettu", version: 4, website: WEBSITE,
     languages: ["zh-Hans", "zh-Hant", "en", "ja"], rating: ContentRating.UNKNOWN, minSupportedAppVersion: "7.0.0",
   };
   private readonly api = new HttpClient({ timeout: 20_000, retries: 0, rateLimit: { permits: 1, period: 0.5 }, validateStatus: () => true });
@@ -28,7 +29,8 @@ export default class MangaDex implements Delegate {
   getConfiguration() { return { useClientForImageRequests: true }; }
   private async language(): Promise<Language> { return (await ObjectStore.string("mangadex.chapterLanguage") ?? "all") as Language; }
   private async get<T>(path: string, params: [string, string | number][] = []): Promise<T> {
-    const response = await this.api.get(`${API}${path}${params.length ? `?${query(params)}` : ""}`);
+    const url = `${API}${path}${params.length ? `?${query(params)}` : ""}`;
+    const response = await networkRequest(url, () => this.api.get(url));
     if (response.status !== 200) return readReply<T>(response.status, null);
     return readReply<T>(response.status, await response.json());
   }

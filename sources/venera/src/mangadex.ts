@@ -145,7 +145,7 @@ export function createSource(source: SourceStore): SourceConfig {
     }
   }
   return {
-    ...info("mangadex", "MangaDex（日漫）"), version: "1.0.1", category: category("MangaDex（日漫）· Archettu", FEEDS.filter(([key]) => key !== "tags")),
+    ...info("mangadex", "MangaDex（日漫）"), version: "1.0.2", category: category("MangaDex（日漫）· Archettu", FEEDS.filter(([key]) => key !== "tags")),
     explore: FEEDS.map(([key, title]) => ({ title: `MangaDex · ${title}`, type: key === "tags" ? "multiPartPage" : "multiPageComicList",
       load: async page => key === "tags" ? (await tags()).map(tag => part(`tag:${tag.id}`, `${tag.attributes.group} · ${localized(tag.attributes.name, language())}`)) : browse(key, [], page) })),
     categoryComics: { load: (name, key, values, page) => browse(key ?? name, values, page), optionLoader: async (_name, key) => {

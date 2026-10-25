@@ -7,43 +7,65 @@ import {
   type ItemListRequest, type PagedItemList, type PopulatedForm, type SearchRequest,
   type SourceInfo, type STTStore, type UIForm, type ItemPageResponse, type SortOptions,
 } from "@suwatte/toolchain/types";
-import { COMIC_FIELDS, PAGE_SIZE, WEBSITE, imagePages, numericSerial, readData, requireComic, sessionCookies,
+import { COMIC_FIELDS, PAGE_SIZE, WEBSITE, WEBSITES, komiicWebsite, komiicUrl, imagePages, numericSerial, readData, requireComic, sessionCookies,
   type Comic, type ComicChapter } from "@archettu/komiic";
 
+import { httpError, networkError } from "@archettu/manga-core";
 declare const SecureStore: STTStore;
 
 export default class Komiic implements Delegate {
   static info: SourceInfo = {
-    id: "zh.komiic", name: "Komiic · Archettu", version: 2, website: WEBSITE,
+    id: "zh.komiic", name: "Komiic · Archettu", version: 3, website: WEBSITE,
     languages: ["zh-Hant"], rating: ContentRating.UNKNOWN, minSupportedAppVersion: "7.0.0",
   };
   private readonly api = new HttpClient({ timeout: 20_000, retries: 0, maxRedirects: 0,
     rateLimit: { permits: 1, period: 0.75 }, validateStatus: () => true });
   readonly client = new HttpClient({ timeout: 20_000, retries: 0, maxRedirects: 0, validateStatus: () => true });
-  private refreshing?: Promise<void>;
+  private readonly refreshing = new Map<string, Promise<void>>();
+  private activeWebsite = WEBSITE;
   private categoriesCache?: { id: string; name: string; group: string; comicCount: number }[];
   private elementsCache?: { id: string; name: string; type: string; comicCount: number }[];
 
   constructor() {
     this.client.interceptors.request.use(async request => {
-      if (request.url.startsWith(`${WEBSITE}/api/image/`)) {
-        await this.refreshSession();
-        for (const [name, value] of Object.entries(await this.headers())) request.headers.set(name, value);
+      const website = await this.website();
+      request.url = komiicUrl(request.url, website);
+      request.headers.delete("Cookie");
+      request.headers.delete("Authorization");
+      request.cookies = [];
+      if (request.url.startsWith(`${website}/api/image/`)) {
+        await this.refreshSession(website);
+        for (const [name, value] of Object.entries(await this.headers(website))) request.headers.set(name, value);
         const comic = request.context?.comicId;
         const chapter = request.context?.chapterId;
         if (typeof comic === "string" && typeof chapter === "string") {
-          request.headers.set("Referer", this.chapterUrl(comic, chapter));
+          request.headers.set("Referer", this.chapterUrl(comic, chapter, website));
         }
-      } else request.headers.set("Referer", `${WEBSITE}/`);
+      } else request.headers.set("Referer", `${website}/`);
       return request;
     });
     this.client.interceptors.response.use(response => {
-      if (response.status === 402) throw new Error("Komiic 今日图片阅读额度已用完，请登录或等待额度恢复。");
-      if (response.status === 401) throw new Error("Komiic 登录已失效，请重新登录。");
+      if (response.status < 200 || response.status >= 300) throw httpError(response.status, "Komiic 图片");
       return response;
     });
   }
   getConfiguration() { return { useClientForImageRequests: true }; }
+  private async website(): Promise<string> {
+    const website = komiicWebsite(await ObjectStore.string("komiic.website"));
+    if (website !== this.activeWebsite) {
+      this.activeWebsite = website;
+      this.categoriesCache = undefined;
+      this.elementsCache = undefined;
+    }
+    return website;
+  }
+  private sessionKey(website: string, key: string): string {
+    return `${website === WEBSITE ? "komiic" : "komiic.cc"}.${key}`;
+  }
+  private async post(url: string, body: string, headers: Record<string, string>) {
+    try { return await this.api.post(url, body, { headers }); }
+    catch (error) { throw networkError(error, url); }
+  }
   async getHomePage(): Promise<HomePage> {
     return { feeds: [
       { id: "latest", title: "最近更新", content: { list: { key: "latest" } } },
@@ -68,6 +90,7 @@ export default class Komiic implements Delegate {
       { id: "VIEWS", title: "总观看数" }, { id: "MONTH_VIEWS", title: "本月观看数" }, { id: "FAVORITE_COUNT", title: "喜爱数" }] };
   }
   private async categories() {
+    await this.website();
     if (!this.categoriesCache) {
       const data = await this.query<{ allCategory: NonNullable<Komiic["categoriesCache"]> }>("allCategory", "query allCategory { allCategory { id name group comicCount } }", {});
       if (!Array.isArray(data.allCategory)) throw new Error("Komiic 分类格式已变化。");
@@ -76,6 +99,7 @@ export default class Komiic implements Delegate {
     return this.categoriesCache;
   }
   private async elements() {
+    await this.website();
     if (!this.elementsCache) {
       const data = await this.query<{ allElements: NonNullable<Komiic["elementsCache"]> }>("allElements", "query allElements { allElements { id name type comicCount } }", {});
       if (!Array.isArray(data.allElements)) throw new Error("Komiic 标签格式已变化。");
@@ -100,48 +124,49 @@ export default class Komiic implements Delegate {
       items: entries.map(entry => ({ id: `${key}:${entry.id}`, title: entry.name, subtitle: `${entry.comicCount} 部`, rating: ContentRating.UNKNOWN,
         destination: ItemListDestination({ key: `${key}:${entry.id}` }, entry.name) })) })), isLastPage: true };
   }
-  private async headers(): Promise<Record<string, string>> {
-    const cookies = await SecureStore.string("komiic.cookies");
-    const token = await SecureStore.string("komiic.token");
-    return { Referer: `${WEBSITE}/`, "Content-Type": "application/json",
+  private async headers(website: string): Promise<Record<string, string>> {
+    const cookies = await SecureStore.string(this.sessionKey(website, "cookies"));
+    const token = await SecureStore.string(this.sessionKey(website, "token"));
+    return { Referer: `${website}/`, "Content-Type": "application/json",
       ...(cookies ? { Cookie: cookies } : {}), ...(token ? { Authorization: `Bearer ${token}` } : {}) };
   }
-  private async saveSession(cookieHeader: string | null, token?: string): Promise<boolean> {
+  private async saveSession(website: string, cookieHeader: string | null, token?: string): Promise<boolean> {
     const cookies = sessionCookies(cookieHeader);
     if (cookies) {
-      const previous = await SecureStore.string("komiic.cookies") ?? "";
+      const previous = await SecureStore.string(this.sessionKey(website, "cookies")) ?? "";
       const merged = new Map([...previous.split("; "), ...cookies.split("; ")].filter(Boolean).map(cookie => {
         const separator = cookie.indexOf("=");
         return [cookie.slice(0, separator), cookie.slice(separator + 1)] as const;
       }));
-      await SecureStore.set("komiic.cookies", Array.from(merged, ([key, value]) => `${key}=${value}`).join("; "));
+      await SecureStore.set(this.sessionKey(website, "cookies"), Array.from(merged, ([key, value]) => `${key}=${value}`).join("; "));
     }
-    if (token) await SecureStore.set("komiic.token", token);
-    if (cookies || token) await ObjectStore.set("komiic.refreshedAt", Date.now());
+    if (token) await SecureStore.set(this.sessionKey(website, "token"), token);
+    if (cookies || token) await ObjectStore.set(this.sessionKey(website, "refreshedAt"), Date.now());
     return Boolean(cookies || token);
   }
-  private async refreshSession(): Promise<void> {
-    if (!await SecureStore.string("komiic.cookies")) return;
-    const at = await ObjectStore.number("komiic.refreshedAt") ?? 0;
+  private async refreshSession(website: string): Promise<void> {
+    if (!await SecureStore.string(this.sessionKey(website, "cookies"))) return;
+    const at = await ObjectStore.number(this.sessionKey(website, "refreshedAt")) ?? 0;
     if (Date.now() - at < 30 * 60_000) return;
-    if (!this.refreshing) this.refreshing = (async () => {
-      const response = await this.api.post(`${WEBSITE}/auth/refresh`, "{}", { headers: await this.headers() });
+    if (!this.refreshing.has(website)) this.refreshing.set(website, (async () => {
+      const response = await this.post(`${website}/auth/refresh`, "{}", await this.headers(website));
       if (response.status !== 200 && response.status !== 204) throw new Error(`Komiic 登录刷新失败（HTTP ${response.status}），请重新登录。`);
-      await this.saveSession(response.headers.get("set-cookie"));
-      await ObjectStore.set("komiic.refreshedAt", Date.now());
-    })();
-    try { await this.refreshing; } finally { this.refreshing = undefined; }
+      await this.saveSession(website, response.headers.get("set-cookie"));
+      await ObjectStore.set(this.sessionKey(website, "refreshedAt"), Date.now());
+    })());
+    try { await this.refreshing.get(website); } finally { this.refreshing.delete(website); }
   }
   private async query<T>(operationName: string, query: string, variables: Record<string, unknown>): Promise<T> {
-    await this.refreshSession();
-    const response = await this.api.post(`${WEBSITE}/api/query`, JSON.stringify({ operationName, query, variables }), { headers: await this.headers() });
+    const website = await this.website();
+    await this.refreshSession(website);
+    const response = await this.post(`${website}/api/query`, JSON.stringify({ operationName, query, variables }), await this.headers(website));
     if (response.status !== 200) return readData<T>(response.status, null);
     return readData<T>(response.status, await response.json());
   }
   private item(value: Comic): Item {
     const comic = requireComic(value);
-    return { id: comic.id, title: comic.title, coverImage: comic.imageUrl, rating: ContentRating.UNKNOWN,
-      subtitle: comic.authors?.map(author => author.name).join("、"), webUrl: `${WEBSITE}/comic/${encodeURIComponent(comic.id)}` };
+    return { id: comic.id, title: comic.title, coverImage: komiicUrl(comic.imageUrl, this.activeWebsite), rating: ContentRating.UNKNOWN,
+      subtitle: comic.authors?.map(author => author.name).join("、"), webUrl: `${this.activeWebsite}/comic/${encodeURIComponent(comic.id)}` };
   }
   async getItemList(request: ItemListRequest, page: number): Promise<PagedItemList> {
     if (!Number.isInteger(page) || page < 1) throw new Error("页码必须从 1 开始。");
@@ -229,15 +254,15 @@ export default class Komiic implements Delegate {
     const data = await this.query<{ comicById: Comic }>("mangaQuery",
       `query mangaQuery($comicId: ID!) { comicById(comicId: $comicId) { ${COMIC_FIELDS} } }`, { comicId: contentId });
     const comic = requireComic(data.comicById);
-    return { title: comic.title, coverImage: comic.imageUrl, summary: comic.description,
+    return { title: comic.title, coverImage: komiicUrl(comic.imageUrl, this.activeWebsite), summary: comic.description,
       rating: ContentRating.UNKNOWN, contentType: ContentType.MANGA, readingMode: ReadingMode.PAGED_MANGA,
       status: comic.status === "END" ? ContentStatus.COMPLETED : comic.status === "ONGOING" ? ContentStatus.ONGOING : ContentStatus.UNKNOWN,
       credits: comic.authors?.map(author => ({ name: author.name, role: "作者" })),
       genres: comic.categories?.map(category => ({ id: category.id, title: category.name })),
-      webUrl: `${WEBSITE}/comic/${encodeURIComponent(contentId)}` };
+      webUrl: `${this.activeWebsite}/comic/${encodeURIComponent(contentId)}` };
   }
-  private chapterUrl(contentId: string, chapterId: string): string {
-    return `${WEBSITE}/comic/${encodeURIComponent(contentId)}/chapter/${encodeURIComponent(chapterId)}/images/all`;
+  private chapterUrl(contentId: string, chapterId: string, website = this.activeWebsite): string {
+    return `${website}/comic/${encodeURIComponent(contentId)}/chapter/${encodeURIComponent(chapterId)}/images/all`;
   }
   async getChapters(contentId: string): Promise<Chapter[]> {
     const data = await this.query<{ chaptersByComicId: ComicChapter[] }>("mangaQuery",
@@ -258,11 +283,15 @@ export default class Komiic implements Delegate {
   async getChapterPages(contentId: string, chapterId: string): Promise<ChapterPage[]> {
     const data = await this.query<{ imagesByChapterId: { kid: string }[] }>("imagesByChapterId",
       "query imagesByChapterId($chapterId: ID!) { imagesByChapterId(chapterId: $chapterId) { kid } }", { chapterId });
-    return imagePages(data.imagesByChapterId).map(url => ({ url, context: { comicId: contentId, chapterId } }));
+    return imagePages(data.imagesByChapterId, this.activeWebsite).map(url => ({ url, context: { comicId: contentId, chapterId } }));
   }
   async getSettingsPage(): Promise<UIForm> {
-    const loggedIn = Boolean(await SecureStore.string("komiic.cookies") || await SecureStore.string("komiic.token"));
+    const website = await this.website();
+    const loggedIn = Boolean(await SecureStore.string(this.sessionKey(website, "cookies")) || await SecureStore.string(this.sessionKey(website, "token")));
     return { sections: [
+      { header: "连接", footer: "大陆网络可选 komiic.cc。两个入口分别登录，切换后请刷新目录；访问受限时不会自动换站。", views: [
+        UIPicker({ id: "website", title: "访问入口", currentValue: website, options: WEBSITES })
+      ] },
       { header: "目录", views: [UIPicker({ id: "chapters", title: "章节列表", currentValue: await ObjectStore.string("komiic.chapters") ?? "all",
         options: [{ id: "all", title: "卷与章节" }, { id: "chapter", title: "仅章节" }, { id: "book", title: "仅卷" }] })] },
       { header: loggedIn ? "账号：已保存登录" : "账号：未登录", footer: "图片额度由 Komiic 决定。密码不会保存；登录会话仅存于设备安全存储。", views: [
@@ -277,26 +306,29 @@ export default class Komiic implements Delegate {
     if (Boolean(email) !== Boolean(password)) throw new Error("请同时填写邮箱和密码。");
     if (data.logout && email) throw new Error("请分别执行登录与退出登录。");
     if (data.chapters !== undefined && !["all", "chapter", "book"].includes(String(data.chapters))) throw new Error("不支持的章节类型。");
+    if (data.website !== undefined) await ObjectStore.set("komiic.website", komiicWebsite(data.website));
+    const website = await this.website();
     if (email) {
-      const response = await this.api.post(`${WEBSITE}/api/login`, JSON.stringify({ email, password }),
-        { headers: { Referer: `${WEBSITE}/`, "Content-Type": "application/json" } });
+      const response = await this.post(`${website}/api/login`, JSON.stringify({ email, password }),
+        { Referer: `${website}/`, "Content-Type": "application/json" });
       if (response.status !== 200 && response.status !== 204) throw new Error(`Komiic 登录失败（HTTP ${response.status}），请检查邮箱和密码。`);
       let body: { token?: string } = {};
       try { body = await response.json(); } catch { /* Current login can return only cookies. */ }
-      await SecureStore.remove("komiic.cookies");
-      await SecureStore.remove("komiic.token");
-      if (!await this.saveSession(response.headers.get("set-cookie"), body?.token)) throw new Error("Komiic 未返回可保存的登录会话，请更新源。");
+      await SecureStore.remove(this.sessionKey(website, "cookies"));
+      await SecureStore.remove(this.sessionKey(website, "token"));
+      if (!await this.saveSession(website, response.headers.get("set-cookie"), body?.token)) throw new Error("Komiic 未返回可保存的登录会话，请更新源。");
     } else if (data.logout) await this.clearAuthentication();
     if (typeof data.chapters === "string") await ObjectStore.set("komiic.chapters", data.chapters);
   }
   async clearAuthentication(): Promise<void> {
+    const website = await this.website();
     try {
-      const response = await this.api.post(`${WEBSITE}/auth/logout`, "{}", { headers: await this.headers() });
+      const response = await this.post(`${website}/auth/logout`, "{}", await this.headers(website));
       if (response.status !== 200 && response.status !== 204) throw new Error(`Komiic 退出登录失败（HTTP ${response.status}）。`);
     } finally {
-      await SecureStore.remove("komiic.cookies");
-      await SecureStore.remove("komiic.token");
-      await ObjectStore.remove("komiic.refreshedAt");
+      await SecureStore.remove(this.sessionKey(website, "cookies"));
+      await SecureStore.remove(this.sessionKey(website, "token"));
+      await ObjectStore.remove(this.sessionKey(website, "refreshedAt"));
     }
   }
 }

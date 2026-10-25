@@ -2,6 +2,7 @@ import { ContentRating, ContentStatus, ContentType, ReadingMode, ItemListDestina
   type Delegate, type HomePage, type Item, type ItemPageResponse, type ItemListRequest, type PagedItemList, type SearchRequest, type Content, type Chapter, type ChapterPage, type UIForm, type PopulatedForm, type STTStore, type SortOptions } from "@suwatte/toolchain/types";
 import type { Site, Manga, Details, Request } from "@archettu/manga-core";
 import { IMAGE_SERVERS } from "@archettu/manhuagui";
+import { networkRequest } from "./network";
 
 declare const SecureStore: STTStore;
 export class CatalogSource implements Delegate {
@@ -12,7 +13,7 @@ export class CatalogSource implements Delegate {
   constructor(factory: (request: Request) => Site, interval: number) {
     this.api = new HttpClient({ timeout: 20_000, retries: 0, rateLimit: { permits: 1, period: interval }, validateStatus: () => true, maxRedirects: 0 });
     this.site = factory(async (url, headers, body) => {
-      const response = body === undefined ? await this.api.get(url, { headers }) : await this.api.post(url, body, { headers });
+      const response = await networkRequest(url, () => body === undefined ? this.api.get(url, { headers }) : this.api.post(url, body, { headers }));
       return { status: response.status, body: await response.text() };
     });
     this.client.interceptors.request.use(request => {

@@ -1,4 +1,6 @@
-import type { HttpClient as Client, Primitive, STTStore } from "@suwatte/toolchain/types";
+import type { HttpClient as Client, HttpResponse, Primitive, STTStore, RequestConfig } from "@suwatte/toolchain/types";
+import { networkRequest } from "../../network";
+import { httpError } from "@archettu/manga-core";
 import {
   appHeaders, createDevice, DEFAULT_API, isCopyApi, loginBody, normalizeApi,
   readResults, copyRegion, copyWebsite, imageHeaders, REQUEST_ID_URL, needsRequestId, readRequestId, type DeviceInfo,
@@ -21,6 +23,20 @@ export class CopyMangaApi {
 
   reset(): void {
     this.discoveredApi = undefined;
+  }
+
+  private getResponse(url: string, config?: RequestConfig) {
+    return networkRequest(url, () => this.client.get(url, config));
+  }
+  private postResponse(url: string, body: string, config?: RequestConfig) {
+    return networkRequest(url, () => this.client.post(url, body, config));
+  }
+  private async json(response: HttpResponse, service = "CopyManga API"): Promise<unknown> {
+    try { return await response.json(); }
+    catch {
+      if ([210, 401, 402, 403, 429, 451].includes(response.status)) throw httpError(response.status, service);
+      throw new Error(`${service} 返回了非 JSON 内容（HTTP ${response.status}），请检查 API 地址或网站访问提示。`);
+    }
   }
 
   async refresh(): Promise<void> {
@@ -64,12 +80,12 @@ export class CopyMangaApi {
     const region = await this.region();
     let restricted = false;
     try {
-      const response = await this.client.get("https://api.copy-manga.com/api/v3/system/network2", {
+      const response = await this.getResponse("https://api.copy-manga.com/api/v3/system/network2", {
         params: { platform: "3" }, headers: await this.headers(false),
       });
-      restricted = [210, 401, 403, 429].includes(response.status);
-      const body = await response.json();
-      restricted ||= [210, 401, 403, 429].includes(Number((body as { code?: number })?.code));
+      restricted = [210, 401, 402, 403, 429, 451].includes(response.status);
+      const body = await this.json(response, "CopyManga 地址发现服务");
+      restricted ||= [210, 401, 402, 403, 429, 451].includes(Number((body as { code?: number })?.code));
       const results = readResults<{ api?: string[][] }>(response.status, body);
       const host = results.api?.[0]?.[0];
       if (typeof host === "string") {
@@ -92,17 +108,13 @@ export class CopyMangaApi {
     const base = await this.baseUrl(), region = await this.region();
     let requestId: Record<string, string> = {};
     if (needsRequestId(path, region)) {
-      const response = await this.client.get(REQUEST_ID_URL, { headers: imageHeaders(new Date(), region) });
-      requestId = { request_id: readRequestId(response.status, await response.json()) };
+      const response = await this.getResponse(REQUEST_ID_URL, { headers: imageHeaders(new Date(), region) });
+      requestId = { request_id: readRequestId(response.status, await this.json(response, "CopyManga 大陆参数服务")) };
     }
-    const response = await this.client.get(`${base}/api/v3/${path}`, {
+    const response = await this.getResponse(`${base}/api/v3/${path}`, {
       params: { in_mainland: region === "1", ...params, ...requestId }, headers: await this.headers(),
     });
-    let body: unknown;
-    try { body = await response.json(); } catch {
-      throw new Error(`CopyManga API 返回了非 JSON 内容（HTTP ${response.status}），请检查 API 地址或访问验证。`);
-    }
-    return readResults<T>(response.status, body);
+    return readResults<T>(response.status, await this.json(response));
   }
 
   async webSearch<T>(query: string, limit: number, offset: number): Promise<T> {
@@ -111,33 +123,33 @@ export class CopyMangaApi {
       "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 Version/18.5 Safari/605.1.15",
       Referer: `${website}/`,
     };
-    const page = await this.client.get(`${website}/search`, { headers });
-    if (page.status !== 200) throw new Error(`CopyManga 搜索页暂时无法访问（HTTP ${page.status}）。`);
+    const page = await this.getResponse(`${website}/search`, { headers });
+    if (page.status != 200) throw httpError(page.status, "CopyManga 搜索页");
     const path = (await page.text()).match(/const\s+countApi\s*=\s*["']([^"']+)["']/)?.[1];
     if (!path) throw new Error("CopyManga 搜索接口已变化，请在源设置中切换 App 搜索或更新源。");
     let url: string;
     if (path.startsWith("/api/")) url = `${website}${path}`;
     else if (path.startsWith(`${website}/api/`)) url = path;
     else throw new Error("CopyManga 搜索页返回了无法识别的接口地址。");
-    const response = await this.client.get(url, { headers, params: { q: query, q_type: "", platform: 2, limit, offset } });
-    return readResults<T>(response.status, await response.json());
+    const response = await this.getResponse(url, { headers, params: { q: query, q_type: "", platform: 2, limit, offset } });
+    return readResults<T>(response.status, await this.json(response, "CopyManga 搜索接口"));
   }
 
   async web(path: string, params: Record<string, Primitive> = {}): Promise<string> {
     const website = await this.website();
-    const response = await this.client.get(`${website}${path}`, { params, headers: { Referer: `${website}/`,
+    const response = await this.getResponse(`${website}${path}`, { params, headers: { Referer: `${website}/`,
       "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 Version/18.5 Safari/605.1.15" } });
-    if (response.status !== 200) throw new Error(`CopyManga 浏览页面暂时无法访问（HTTP ${response.status}）。`);
+    if (response.status !== 200) throw httpError(response.status, "CopyManga 浏览页面");
     return response.text();
   }
 
   async login(username: string, password: string): Promise<void> {
     const fields = loginBody(username, password, Math.floor(1_000 + Math.random() * 9_000));
     const body = Object.entries(fields).map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(value)}`).join("&");
-    const response = await this.client.post(`${await this.baseUrl()}/api/v3/login`, body, {
+    const response = await this.postResponse(`${await this.baseUrl()}/api/v3/login`, body, {
       headers: { ...await this.headers(false), "Content-Type": "application/x-www-form-urlencoded" },
     });
-    const results = readResults<{ token: string }>(response.status, await response.json());
+    const results = readResults<{ token: string }>(response.status, await this.json(response, "CopyManga 登录接口"));
     if (typeof results.token !== "string" || !results.token.trim()) throw new Error("CopyManga 登录未返回有效令牌。");
     await SecureStore.set("copymanga.token", results.token);
   }

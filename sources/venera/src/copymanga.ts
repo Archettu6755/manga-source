@@ -1,3 +1,4 @@
+import { httpError } from "@archettu/manga-core";
 import {
   appHeaders, createDevice, DEFAULT_API, isCopyApi, loginBody, normalizeApi, readResults, REQUEST_ID_URL, needsRequestId, readRequestId,
   WEBSITE, COPY_WEBSITES, copyWebsite, copyRegion, imageHeaders, readList, requireComic, orderedPages, parseComicList, parseCardList,
@@ -48,9 +49,9 @@ class CopyApi {
     let restricted = false;
     try {
       const response = await this.transport.request("GET", "https://api.copy-manga.com/api/v3/system/network2?platform=3", this.headers(false));
-      restricted = [210, 401, 403, 429].includes(response.status);
+      restricted = [210, 401, 402, 403, 429, 451].includes(response.status);
       const body = json(response);
-      restricted ||= [210, 401, 403, 429].includes(Number((body as { code?: number })?.code));
+      restricted ||= [210, 401, 402, 403, 429, 451].includes(Number((body as { code?: number })?.code));
       const result = readResults<{ api?: string[][] }>(response.status, body);
       const host = result.api?.[0]?.[0];
       if (host && isCopyApi(normalizeApi(host))) {
@@ -76,7 +77,7 @@ class CopyApi {
   async web(path: string, values: Record<string, string | number | boolean> = {}) {
     const query = params(values);
     const response = await this.transport.request("GET", `${this.website()}${path}${query ? `?${query}` : ""}`, this.webHeaders());
-    if (response.status !== 200) throw new Error(`CopyManga 浏览页面暂时无法访问（HTTP ${response.status}）。`);
+    if (response.status !== 200) throw httpError(response.status, "CopyManga 浏览页面");
     return response.body;
   }
   async search(keyword: string, page: number) {
@@ -175,7 +176,7 @@ export function createSource(source: SourceStore): SourceConfig {
     return value;
   }
   return {
-    ...info("copymanga", "拷贝漫画"), version: "1.0.2",
+    ...info("copymanga", "拷贝漫画"), version: "1.0.3",
     category: { ...category("拷贝漫画 · Archettu", FEEDS.filter(([key]) => !["home", "themes", "topics", "ranks"].includes(key))), enableRankingPage: true },
     explore: FEEDS.map(([key, title]) => ({ title: `拷贝漫画 · ${title}`, type: ["home", "themes", "topics", "ranks"].includes(key) ? "multiPartPage" : "multiPageComicList",
       load: async page => {

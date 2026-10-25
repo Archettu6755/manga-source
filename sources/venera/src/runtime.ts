@@ -1,3 +1,5 @@
+import { httpError, networkError } from "@archettu/manga-core";
+
 export interface SourceStore {
   loadData(key: string): unknown;
   saveData(key: string, value: unknown): void;
@@ -64,7 +66,7 @@ declare global {
 }
 export const BASE = "https://archettu6755.github.io/manga-source/venera";
 export function info(id: string, name: string) {
-  return { name: `${name} · Archettu`, key: `archettu_${id}`, version: "1.0.0", minAppVersion: "1.6.3", url: `${BASE}/${id}.js` };
+  return { name: `${name} · Archettu`, key: `archettu_${id}`, version: "1.0.1", minAppVersion: "1.6.3", url: `${BASE}/${id}.js` };
 }
 export function target(key: string, title = key): Target {
   return { page: "category", attributes: { category: title, param: key } };
@@ -88,7 +90,10 @@ export function params(values: Record<string, string | number | boolean>): strin
   return Object.entries(values).map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(value)}`).join("&");
 }
 export function json(response: Response): unknown {
-  try { return JSON.parse(response.body); } catch { throw new Error(`接口未返回 JSON（HTTP ${response.status}），请检查网站访问提示。`); }
+  try { return JSON.parse(response.body); } catch {
+    if ([210, 401, 402, 403, 429, 451].includes(response.status)) throw httpError(response.status, "图源接口");
+    throw new Error(`接口未返回 JSON（HTTP ${response.status}），请检查网站访问提示。`);
+  }
 }
 export function header(response: Response, name: string): string | null {
   const entry = Object.entries(response.headers).find(([key]) => key.toLowerCase() === name.toLowerCase());
@@ -103,7 +108,8 @@ export class Transport {
       const wait = this.nextAt - Date.now();
       if (wait > 0) await new Promise<void>(resolve => setTimeout(resolve, wait));
       this.nextAt = Date.now() + this.interval;
-      return method === "GET" ? Network.get(url, headers) : Network.post(url, headers, body);
+      try { return await (method === "GET" ? Network.get(url, headers) : Network.post(url, headers, body)); }
+      catch (error) { throw networkError(error, url); }
     });
     this.tail = job.catch(() => undefined);
     return job;

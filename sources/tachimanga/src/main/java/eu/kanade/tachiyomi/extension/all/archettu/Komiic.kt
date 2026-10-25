@@ -1,10 +1,13 @@
 package eu.kanade.tachiyomi.extension.all.archettu
 
+import archettu.protocol.komiic.KomiicProtocol
+import archettu.protocol.core.SourceFailures
 import android.util.Base64
 import androidx.preference.PreferenceScreen
 import eu.kanade.tachiyomi.source.model.*
 import okhttp3.*
 import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONArray
 import org.json.JSONObject
@@ -17,42 +20,52 @@ class Komiic : PersonalSource() {
     override val id = 790675500000000002L
     override val name = "Komiic · 杕"
     override val lang = "zh"
-    override val baseUrl = "https://komiic.com"
+    override val baseUrl get() = KomiicProtocol.website(prefs.getString("website", null))
+    private fun tokenKey(origin: String) = if (origin == KomiicProtocol.DEFAULT_WEBSITE) "token" else "token_komiic_cc"
+    private fun directoryKey(kind: String) = if (baseUrl == KomiicProtocol.DEFAULT_WEBSITE) "directory_$kind" else "directory_cc_$kind"
     private val fields = "id title description status imageUrl authors { id name } categories { id name }"
     private val directories = listOf("categories", "elements", "authors", "originals", "characters")
     private val entries = listOf("popular" to "热门漫画", "latest" to "最近更新", "all" to "所有漫画", "newest" to "最近上架", "completed" to "已完结", "short" to "短篇",
         "categories" to "题材分类", "elements" to "标签", "authors" to "作者列表", "originals" to "原作", "characters" to "角色",
         "recommended-week" to "本周推荐", "recommended-month" to "本月推荐", "recommended-year" to "年度推荐", "random" to "随机发现")
     override fun headersBuilder() = Headers.Builder().set("Referer", "$baseUrl/").set("User-Agent", "Mozilla/5.0")
-    private fun apiHeaders(): Headers = headers.newBuilder().apply {
-        prefs.getString("token", "")?.takeIf { it.isNotBlank() }?.let { set("Authorization", "Bearer $it") }
+    private fun apiHeaders(origin: String): Headers = Headers.Builder().set("Referer", "$origin/").set("User-Agent", "Mozilla/5.0").apply {
+        prefs.getString(tokenKey(origin), "")?.takeIf { it.isNotBlank() }?.let { set("Authorization", "Bearer $it") }
     }.build()
     override val client: OkHttpClient by lazy {
-        network.client.newBuilder().addInterceptor { chain ->
+        val cookieStore = network.client.cookieJar
+        network.client.newBuilder().retryOnConnectionFailure(false).followRedirects(false).followSslRedirects(false)
+            .cookieJar(object : CookieJar {
+                override fun loadForRequest(url: HttpUrl) = if (KomiicProtocol.isAccountRequest(url.toString())) cookieStore.loadForRequest(url) else emptyList()
+                override fun saveFromResponse(url: HttpUrl, cookies: List<Cookie>) {
+                    if (KomiicProtocol.isAccountRequest(url.toString())) cookieStore.saveFromResponse(url, cookies)
+                }
+            }).addInterceptor { chain ->
             val response = chain.proceed(chain.request())
-            if (response.code == 402) { response.close(); throw IOException("Komiic 今日图片额度已用完，请登录或等待额度恢复。") }
+            if (!response.isSuccessful) { val code = response.code; response.close(); throw SourceFailures.http(code, "Komiic") }
             response
         }.build()
     }
-    private fun refresh() {
-        val cookieToken = client.cookieJar.loadForRequest(okhttp3.HttpUrl.Builder().scheme("https").host("komiic.com").build()).find { it.name == "komiic-access-token" }?.value
-        val token = cookieToken ?: prefs.getString("token", "")
+    private fun refresh(origin: String) {
+        val cookieToken = client.cookieJar.loadForRequest("$origin/api/query".toHttpUrl()).find { it.name == "komiic-access-token" }?.value
+        val token = cookieToken ?: prefs.getString(tokenKey(origin), "")
         if (token.isNullOrBlank()) return
         val expiry = runCatching { JSONObject(String(Base64.decode(token.split('.')[1], Base64.URL_SAFE))).optLong("exp") }.getOrDefault(0)
         if (expiry == 0L || System.currentTimeMillis() + 60_000 < expiry * 1000) return
         val body = "".toRequestBody("application/json".toMediaType())
-        val result = request(Request.Builder().url("$baseUrl/auth/refresh").headers(apiHeaders()).post(body).build())
-        if (result.trim().startsWith("{")) JSONObject(result).text("token").takeIf { it.isNotBlank() }?.let { prefs.edit().putString("token", it).apply() }
+        val result = request(Request.Builder().url("$origin/auth/refresh").headers(apiHeaders(origin)).post(body).build())
+        if (result.trim().startsWith("{")) JSONObject(result).text("token").takeIf { it.isNotBlank() }?.let { prefs.edit().putString(tokenKey(origin), it).apply() }
     }
     private fun query(operation: String, document: String, variables: JSONObject = JSONObject()): JSONObject {
-        refresh()
+        val origin = baseUrl
+        refresh(origin)
         val body = JSONObject().put("operationName", operation).put("query", document).put("variables", variables).toString().toRequestBody("application/json".toMediaType())
-        val reply = JSONObject(request(Request.Builder().url("$baseUrl/api/query").headers(apiHeaders()).post(body).build()))
+        val reply = JSONObject(request(Request.Builder().url("$origin/api/query").headers(apiHeaders(origin)).post(body).build()))
         if (reply.array("errors").isNotEmpty()) throw IOException(reply.array("errors").joinToString("；") { it.text("message") })
         return reply.optJSONObject("data") ?: throw IOException("Komiic 未返回数据。")
     }
     private fun manga(value: JSONObject) = SManga.create().apply {
-        url = "/comic/${value.getString("id")}"; title = value.getString("title"); thumbnail_url = value.getString("imageUrl")
+        url = "/comic/${value.getString("id")}"; title = value.getString("title"); thumbnail_url = KomiicProtocol.url(value.getString("imageUrl"), baseUrl)
         author = value.array("authors").joinToString { it.text("name") }; genre = value.array("categories").joinToString { it.text("name") }
         description = value.text("description"); status = when (value.text("status")) { "END" -> SManga.COMPLETED; "ONGOING" -> SManga.ONGOING; else -> SManga.UNKNOWN }
     }
@@ -67,7 +80,7 @@ class Komiic : PersonalSource() {
         } else browse(filters.pick("entry", "popular"), page, filters)
     }
     private fun directoryOptions(kind: String) = listOf("" to "选择条目（首次先搜索加载目录）") +
-        JSONArray(prefs.getString("directory_$kind", "[]")).objects().map { it.getString("id") to it.getString("name") }
+        JSONArray(prefs.getString(directoryKey(kind), "[]")).objects().map { it.getString("id") to it.getString("name") }
     private fun loadDirectory(kind: String): Nothing {
         val items = mutableListOf<JSONObject>()
         var limited = false
@@ -89,7 +102,7 @@ class Komiic : PersonalSource() {
             }
         }
         val choices = items.map { JSONObject().put("id", it.getString("id")).put("name", it.text("nameZhTw").ifEmpty { it.text("name") }) }
-        prefs.edit().putString("directory_$kind", JSONArray(choices).toString()).apply()
+        prefs.edit().putString(directoryKey(kind), JSONArray(choices).toString()).apply()
         throw IOException("目录已加载（${items.size} 项${if (limited) "，网站限制了后续页" else ""}）。请重置筛选器，再选择对应目录条目。")
     }
     private fun browse(entry: String, page: Int, filters: FilterList): MangasPage {
@@ -147,8 +160,12 @@ class Komiic : PersonalSource() {
         images.mapIndexed { index, value -> Page(index, "$baseUrl${chapter.url}/images/all", "$baseUrl/api/image/${value.getString("kid")}") }
     }
     override fun imageRequest(page: Page): Request {
-        refresh()
-        return Request.Builder().url(page.imageUrl!!).headers(apiHeaders().newBuilder().set("Referer", page.url).build()).build()
+        val origin = baseUrl
+        val url = KomiicProtocol.url(page.imageUrl!!, origin)
+        val authenticated = KomiicProtocol.isImage(url, origin)
+        if (authenticated) refresh(origin)
+        val requestHeaders = if (authenticated) apiHeaders(origin) else Headers.Builder().set("Referer", "$origin/").build()
+        return Request.Builder().url(url).headers(requestHeaders.newBuilder().set("Referer", KomiicProtocol.url(page.url, origin)).build()).build()
     }
     override fun getMangaUrl(manga: SManga) = "$baseUrl${manga.url}"
     override fun getChapterUrl(chapter: SChapter) = "$baseUrl${chapter.url}/images/all"
@@ -158,21 +175,24 @@ class Komiic : PersonalSource() {
             Choice("direction", "方向", listOf("desc" to "降序", "asc" to "升序")),
             Choice("status", "状态", listOf("" to "全部", "ONGOING" to "连载", "END" to "完结", "SHORT" to "短篇")))).toTypedArray())
     override fun setupPreferenceScreen(screen: PreferenceScreen) {
+        choice(screen, "website", "访问入口（两个入口分别登录）", listOf("https://komiic.com" to "komiic.com（原入口）", "https://komiic.cc" to "komiic.cc（大陆入口）"), KomiicProtocol.DEFAULT_WEBSITE)
         choice(screen, "chapters", "章节列表", listOf("all" to "卷与章节", "chapter" to "仅章节", "book" to "仅卷"), "all")
         text(screen, "email", "Komiic 邮箱"); text(screen, "password", "密码（仅供提交登录）", password = true)
         action(screen, "登录／刷新登录") {
+            val origin = baseUrl
             try {
                 val body = JSONObject().put("email", prefs.getString("email", "")).put("password", prefs.getString("password", "")).toString().toRequestBody("application/json".toMediaType())
-                val result = request(Request.Builder().url("$baseUrl/api/login").headers(headers).post(body).build())
-                if (result.trim().startsWith("{")) JSONObject(result).text("token").takeIf { it.isNotBlank() }?.let { prefs.edit().putString("token", it).apply() }
-                val cookies = client.cookieJar.loadForRequest(okhttp3.HttpUrl.Builder().scheme("https").host("komiic.com").build())
-                if (prefs.getString("token", "").isNullOrBlank() && cookies.none { it.name.startsWith("komiic-") }) throw IOException("Komiic 未返回登录会话。")
+                val result = request(Request.Builder().url("$origin/api/login").headers(Headers.Builder().set("Referer", "$origin/").build()).post(body).build())
+                if (result.trim().startsWith("{")) JSONObject(result).text("token").takeIf { it.isNotBlank() }?.let { prefs.edit().putString(tokenKey(origin), it).apply() }
+                val cookies = client.cookieJar.loadForRequest("$origin/api/query".toHttpUrl())
+                if (prefs.getString(tokenKey(origin), "").isNullOrBlank() && cookies.none { it.name.startsWith("komiic-") }) throw IOException("Komiic 未返回登录会话。")
                 "登录成功"
             } finally { prefs.edit().remove("password").apply() }
         }
         action(screen, "退出登录") {
-            prefs.edit().remove("token").remove("password").apply()
-            val url = okhttp3.HttpUrl.Builder().scheme("https").host("komiic.com").build()
+            val origin = baseUrl
+            prefs.edit().remove(tokenKey(origin)).remove("password").apply()
+            val url = "$origin/auth/logout".toHttpUrl()
             val expired = client.cookieJar.loadForRequest(url).map { cookie ->
                 Cookie.Builder().name(cookie.name).value("").domain(cookie.domain).path(cookie.path).expiresAt(0).build()
             }

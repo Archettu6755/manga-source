@@ -1,3 +1,4 @@
+import { httpError } from "@archettu/manga-core";
 export const API = "https://api.mangadex.org";
 export const WEBSITE = "https://mangadex.org";
 export const CHAPTER_LANGUAGES = [
@@ -47,8 +48,7 @@ export function readable(chapter: MangaChapter, language: Language): boolean {
     (!chapter.attributes.publishAt || new Date(chapter.attributes.publishAt).getTime() <= Date.now());
 }
 export function readReply<T>(status: number, body: unknown): T {
-  if (status === 429) throw new Error("MangaDex 请求过于频繁，请稍后重试。");
-  if (status !== 200) throw new Error(`MangaDex 请求失败（HTTP ${status}），请稍后重试。`);
+  if (status !== 200) throw httpError(status, "MangaDex");
   const reply = body as { result?: string; errors?: { detail?: string }[] } | null;
   if (reply?.result !== "ok") throw new Error(`MangaDex：${reply?.errors?.map(error => error.detail).join("；") || "接口数据格式已变化"}`);
   return body as T;

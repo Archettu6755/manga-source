@@ -1,3 +1,5 @@
+export { SourceError, failureKind, httpError, networkError, type FailureKind } from "./errors";
+export * from "./diagnostics";
 export interface Option { id: string; title: string }
 export interface Filter { id: string; title: string; options: Option[] }
 export interface Manga { id: string; title: string; cover?: string; author?: string; description?: string; tags?: string[] }

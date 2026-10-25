@@ -13,7 +13,7 @@ test("scripts follow the original loader, register unique keys and preserve ever
     assert.match(scriptFor(id).split("\n")[0], /^class [a-z]+ extends ComicSource \{$/i);
     const { source, context } = fixture(id);
     assert.equal(source.key, `archettu_${id}`);
-    assert.equal(source.version, id === "copymanga" ? "1.0.2" : id === "mangadex" ? "1.0.1" : "1.0.0");
+    assert.equal(source.version, id === "copymanga" ? "1.0.3" : id === "mangadex" ? "1.0.2" : "1.0.1");
     assert.equal(source.url, `https://archettu6755.github.io/manga-source/venera/${id}.js`);
     assert.equal(source.explore.length, count);
     assert.equal(new Set(source.explore.map(page => page.title)).size, count);
@@ -240,9 +240,11 @@ test("native Venera option parsing preserves UUID tags and hyphenated CopyManga 
   assert.equal(new URL(copy.calls.at(-1)!.url).searchParams.get("theme"), "school-romance");
 });
 test("CopyManga API discovery respects access restrictions without falling back to another host", async () => {
-  const { source, calls } = fixture("copymanga", () => ({ status: 429, body: "Too many requests" }));
-  await assert.rejects(source.comic.loadEp("comic", "chapter"), /HTTP 429/);
-  assert.equal(calls.length, 1);
+  for (const status of [210, 401, 402, 403, 429, 451]) {
+    const { source, calls } = fixture("copymanga", () => ({ status, body: "Access denied" }));
+    await assert.rejects(source.comic.loadEp("comic", "chapter"), new RegExp(`HTTP ${status}`));
+    assert.equal(calls.length, 1);
+  }
 });
 test("numeric Komiic chapter IDs preserve volume and serial order", async () => {
   const { source, calls } = fixture("komiic", call => response({ data: JSON.parse(call.body!).operationName === "imagesByChapterId"

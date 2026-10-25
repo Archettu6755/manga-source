@@ -1,5 +1,6 @@
 package eu.kanade.tachiyomi.extension.all.archettu
 
+import archettu.protocol.core.SourceFailures
 import android.app.Application
 import android.content.Context
 import android.content.SharedPreferences
@@ -43,9 +44,11 @@ abstract class PersonalSource : HttpSource(), ConfigurableSource {
         Injekt.get<Application>().getSharedPreferences("source_$id", Context.MODE_PRIVATE)
     }
     protected fun get(url: String, requestHeaders: Headers = headers): String = request(Request.Builder().url(url).headers(requestHeaders).build())
-    protected fun request(request: Request): String = client.newCall(request).execute().use {
-        if (!it.isSuccessful) throw IOException("请求失败（HTTP ${it.code}）：${it.body?.string()?.take(180).orEmpty()}")
-        it.body?.string() ?: throw IOException("服务器未返回内容。")
+    protected fun request(request: Request): String {
+        try { return client.newCall(request).execute().use {
+            if (!it.isSuccessful) throw SourceFailures.http(it.code, request.url.host)
+            it.body?.string() ?: throw IOException("服务器未返回内容。")
+        } } catch (error: IOException) { throw SourceFailures.connection(error, request.url.host) }
     }
     protected fun choice(screen: PreferenceScreen, key: String, title: String, values: List<Pair<String, String>>, default: String) {
         screen.addPreference(ListPreference(screen.context).apply {

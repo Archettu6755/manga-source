@@ -1,5 +1,6 @@
 {
   "name": "@archettu/mangadex", "version": "0.1.0", "private": true,
   "license": "MIT", "main": "dist/index.js", "types": "dist/index.d.ts",
-  "scripts": { "build": "tsc", "check": "tsc --noEmit" }
+  "scripts": { "build": "tsc", "check": "tsc --noEmit" },
+  "dependencies": { "@archettu/manga-core": "0.1.0" }
 }

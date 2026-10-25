@@ -1,5 +1,5 @@
 import MD5 from "crypto-js/md5";
-import { options, query, status, chapterNumber, numericId, type Site, type Filter, type Manga, type MangaList, type Details, type Request, type Section, type Session } from "@archettu/manga-core";
+import { httpError, options, query, status, chapterNumber, numericId, type Site, type Filter, type Manga, type MangaList, type Details, type Request, type Section, type Session } from "@archettu/manga-core";
 
 export const WEBSITE = "https://manhua.zaimanhua.com";
 export const API = "https://v4api.zaimanhua.com/app/v1";
@@ -31,8 +31,7 @@ export function comic(raw: RawComic): Manga {
     description: raw.description, tags: [...names(raw.types), ...names(raw.status)] };
 }
 export function readData<T>(response: { status: number; body: string }): T {
-  if (response.status === 401) throw new Error("再漫画登录已失效，请重新登录。");
-  if (response.status !== 200) throw new Error(`再漫画请求失败（HTTP ${response.status}）。`);
+  if (response.status !== 200) throw httpError(response.status, "再漫画");
   const body = JSON.parse(response.body) as { errno?: number; errmsg?: string; data: T };
   if (body.errno && body.errno !== 0) throw new Error(`再漫画：${body.errmsg || body.errno}`);
   if (body.data == null) throw new Error(body.errmsg || "再漫画未返回数据。");

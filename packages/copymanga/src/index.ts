@@ -1,3 +1,4 @@
+import { SourceError } from "@archettu/manga-core";
 import Base64 from "crypto-js/enc-base64";
 import Utf8 from "crypto-js/enc-utf8";
 import HmacSHA256 from "crypto-js/hmac-sha256";
@@ -134,16 +135,19 @@ export function readResults<T>(status: number, body: unknown): T {
   const code = Number(payload?.code ?? status);
   const message = typeof payload?.message === "string" ? payload.message : payload?.results?.detail;
   if (status === 401 || code === 401) {
-    throw new Error("CopyManga 登录已过期，请在源设置中重新登录。");
+    throw new SourceError("CopyManga 登录已过期，请在源设置中重新登录。", "authentication", 401);
   }
-  if (status === 210 || code === 210 || status === 429) {
-    throw new Error(`CopyManga 请求受限（${code}）：${message || "请稍后重试，或在官方客户端查看限制提示。"}`);
+  if (status === 402 || code === 402) {
+    throw new SourceError("CopyManga 阅读额度已用完（402），请在官网核对额度或等待恢复。", "quota", 402);
+  }
+  if ([210, 403, 429, 451].includes(status) || [210, 403, 429, 451].includes(code)) {
+    throw new SourceError(`CopyManga 请求受限（${code}）：${message || "请稍后重试，或在官方客户端查看限制提示。"}`, status === 429 || code === 429 ? "rate-limit" : "restricted", status === 200 ? code : status);
   }
   if (status < 200 || status >= 300 || code !== 200) {
     throw new Error(`CopyManga 请求失败（HTTP ${status} / ${code}）${message ? `：${message}` : ""}`);
   }
   if (payload?.results == null) {
-    throw new Error("CopyManga 未返回数据，可能需要在源设置中登录，或当前访问受限；请在官网核对后重试。");
+    throw new SourceError("CopyManga 未返回数据，可能需要在源设置中登录，或当前访问受限；请在官网核对后重试。", "empty");
   }
   if (typeof payload.results !== "object") {
     throw new Error("CopyManga 返回了无法识别的数据，请检查 API 地址或更新源。");

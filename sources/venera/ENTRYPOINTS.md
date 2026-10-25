@@ -21,6 +21,8 @@
 
 ## Komiic
 
+源设置可选 `komiic.com` 与大陆入口 `komiic.cc`。下列入口及 `ep:` 章节键保持不变；目录缓存和登录会话按站点分开，切换后刷新作品与目录。
+
 | 内部入口 | 探索页名称 | GraphQL 数据来源 |
 | --- | --- | --- |
 | latest / popular | 最近更新／热门漫画 | `recentUpdate` / `hotComics` |

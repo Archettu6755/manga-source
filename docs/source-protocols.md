@@ -1,6 +1,6 @@
 # 漫画源协议与验证记录
 
-核对日期：2026-10-17。适配覆盖 Suwatte、原版 Venera 接口及 Tachimanga 扩展 API 1.4。
+初次核对日期：2026-10-17；后续复核按日期追加。适配覆盖 Suwatte、原版 Venera 接口及 Tachimanga 扩展 API 1.4。目前仅 Suwatte 完成实际使用测试，Venera 和 Tachimanga 尚未完成实机验证。
 
 ## CopyManga
 
@@ -36,15 +36,15 @@ App 接口使用 `https://v4api.zaimanhua.com/app/v1`，官网入口使用 `http
 
 | 站点 | Suwatte ID／版本 | Venera key／版本 | Tachimanga ID |
 | --- | --- | --- | --- |
-| CopyManga | `zh.copymanga`／5 | `archettu_copymanga`／1.0.2 | `790675500000000001` |
-| Komiic | `zh.komiic`／2 | `archettu_komiic`／1.0.0 | `790675500000000002` |
-| MangaDex | `en.mangadex`／3 | `archettu_mangadex`／1.0.1 | `790675500000000003` |
-| 漫画柜 | `zh.manhuagui`／1 | `archettu_manhuagui`／1.0.0 | `790675500000000004` |
-| 再漫画 | `zh.zaimanhua`／1 | `archettu_zaimanhua`／1.0.0 | `790675500000000005` |
+| CopyManga | `zh.copymanga`／6 | `archettu_copymanga`／1.0.3 | `790675500000000001` |
+| Komiic | `zh.komiic`／3 | `archettu_komiic`／1.0.1 | `790675500000000002` |
+| MangaDex | `en.mangadex`／4 | `archettu_mangadex`／1.0.2 | `790675500000000003` |
+| 漫画柜 | `zh.manhuagui`／2 | `archettu_manhuagui`／1.0.1 | `790675500000000004` |
+| 再漫画 | `zh.zaimanhua`／2 | `archettu_zaimanhua`／1.0.1 | `790675500000000005` |
 
-Tachimanga 扩展版本为 1.4.3，版本代码为 3，使用原仓库证书签名。MangaDex 保持日语原作筛选，默认不限译文语言。
+当前表格包含 2026-10-26 的入口与错误提示更新。Tachimanga 扩展版本为 1.4.4，版本代码为 4，继续使用原仓库证书。MangaDex 保持日语原作筛选，默认不限译文语言。
 
-本地 `npm run check`、91 项测试及 `npm run build` 通过。构建另行执行 Suwatte 产物回调、Venera QuickJS 加载和 APK 签名／内容核对。
+发布前从仓库根目录执行 `npm run check`、`npm test` 和 `npm run build`。构建另行执行 Suwatte 产物回调、Venera QuickJS 加载和 APK 签名／内容核对。
 
 ## 2026-10-23 可达性复核
 
@@ -59,3 +59,21 @@ Tachimanga 扩展版本为 1.4.3，版本代码为 3，使用原仓库证书签�
 | 再漫画 | 浏览和搜索可用，测试作品权限受限 | 首页 50 项、列表 20 项、搜索 20 项；匿名详情返回 `canRead: false`，源显示账号权限提示后停止，未继续请求章节或图片。 |
 
 MangaDex 首次实测在本机 Node HTTP 客户端读取 HTTP 200 响应时中断；使用独立 HTTP 客户端、相同官方 API 和原有网络复核后，列表、搜索、详情、完整目录和章节图片地址均能读取。图片服务器的 403 单独记录为访问限制，没有继续 GET 或尝试其他线路。
+
+## 2026-10-26 大陆入口与诊断复核
+
+Komiic 新增手动选择 `https://komiic.cc`，保留默认 `https://komiic.com`。两个主页本次均返回 HTTP 200，并引用相同的前端脚本；维护者的 [Komiic 入口适配 PR](https://github.com/keiyoushi/extensions-source/pull/16431) 也支持这两个域名及对应的封面域名。三个阅读器同步切换接口、封面、图片和网页链接，按域名分别保存登录状态；旧入口已有的登录数据继续保留。没有自动换站重试。
+
+CopyManga 的 [官网](https://www.copy4000.com/) 明示该地址用于大陆访问，仓库已默认使用这一入口和大陆资源线路，本轮继续保留。核对 [漫画柜上游实现](https://github.com/keiyoushi/extensions-source/tree/main/src/zh/manhuagui) 后，未找到足以确认其备用域名是大陆专用入口的说明；MangaDex 和再漫画也未核实到明确公布的大陆专用入口，因此没有新增地址。这个核对范围不代表这些站点今后不会发布新入口。
+
+统一诊断使用 Suwatte 实际适配代码、空账号存储和本机已有网络，选择 Komiic `cc`，检查到图片 HEAD。未登录、下载漫画图片或在限制后更换入口。结果只代表本次网络和抽查作品，不代表大陆所有网络或其他阅读器的实机体验。
+
+| 图源 | 本次结果 | 验证范围或停止原因 |
+| --- | --- | --- |
+| CopyManga | 浏览和搜索可用，详情未完成 | 列表 50 项、搜索 8 项；大陆参数服务 `marketing.aiacgn.com` 连接超时，未继续请求目录或图片。 |
+| Komiic `cc` | 元数据和图片地址通过，图片读取未验证 | 列表 30 项、搜索 2 项、目录 162 项、首章 110 个图片地址；未执行图片 HEAD 或 GET，不消耗图片额度。 |
+| MangaDex | 检查阶段通过 | 列表 30 项、搜索 22 项、目录 783 项、首章 48 个图片地址及首张图片 HEAD。 |
+| 漫画柜 | 检查阶段通过 | 列表 42 项、搜索 3 项、目录 162 项、首章 110 个图片地址及首张图片 HEAD。 |
+| 再漫画 | 浏览和搜索可用，测试作品权限受限 | 列表 20 项、搜索 20 项；详情返回 `canRead: false` 后停止，未请求目录或图片。 |
+
+诊断命令、报告字段和手动 GitHub Actions 入口见 [诊断说明](diagnostics.md)。网络错误提示现在区分连接中断、超时、账号权限、额度和限频；非 JSON 的 HTTP 403 也保留访问限制提示。

@@ -1,0 +1,57 @@
+name: Check source reachability
+
+on:
+  workflow_dispatch:
+    inputs:
+      reader:
+        description: Reader adapter
+        type: choice
+        options: [suwatte, venera]
+        default: suwatte
+      source:
+        description: Source to check
+        type: choice
+        options: [all, copymanga, komiic, mangadex, manhuagui, zaimanhua]
+        default: all
+      komiic-site:
+        description: Komiic entrance
+        type: choice
+        options: [com, cc]
+        default: com
+      stage:
+        description: Last stage to check (image uses HEAD only)
+        type: choice
+        options: [browse, search, details, chapters, pages, image]
+        default: pages
+
+permissions:
+  contents: read
+
+concurrency:
+  group: source-diagnostics
+  cancel-in-progress: false
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci
+      - name: Check requested source stages
+        env:
+          READER: ${{ inputs.reader }}
+          SOURCE: ${{ inputs.source }}
+          KOMIIC_SITE: ${{ inputs['komiic-site'] }}
+          LAST_STAGE: ${{ inputs.stage }}
+        run: npm run diagnose -- --reader "$READER" --source "$SOURCE" --komiic-site "$KOMIIC_SITE" --stage "$LAST_STAGE"
+      - uses: actions/upload-artifact@v6
+        if: always()
+        with:
+          name: source-diagnostics
+          path: __temp__/diagnostics-latest.json
+          if-no-files-found: warn
