@@ -1,4 +1,4 @@
-# 杕的自用漫画源
+# 自用漫画源
 
 为 Suwatte、Venera 和 Tachimanga 维护独立的 CopyManga、Komiic、MangaDex、漫画柜和再漫画 源。仓库保存适配代码，漫画内容由设备直接请求原网站。
 
