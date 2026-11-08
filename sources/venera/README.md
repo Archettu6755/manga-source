@@ -1,6 +1,6 @@
 # Venera 漫画源
 
-提供 CopyManga、Komiic、MangaDex、漫画柜和再漫画，版本均从 `1.0.0` 开始。按照原版 Venera 1.6.3 的源接口开发，使用独立的 `archettu_copymanga`、`archettu_komiic`、`archettu_mangadex`、`archettu_manhuagui`、`archettu_zaimanhua` 标识，可以与其他仓库的同站源并存。
+提供 CopyManga、Komiic、MangaDex、漫画柜、再漫画、JMComic 和 E-Hentai。按原版 Venera 1.6.3 的接口开发。源使用 `archettu_` 前缀，可与其他仓库的同站源并存。
 
 ## 安装
 
@@ -19,22 +19,26 @@ https://archettu6755.github.io/manga-source/venera/index.json
 - [MangaDex（日漫）](https://archettu6755.github.io/manga-source/venera/mangadex.js)
 - [漫画柜](https://archettu6755.github.io/manga-source/venera/manhuagui.js)
 - [再漫画](https://archettu6755.github.io/manga-source/venera/zaimanhua.js)
+- [JMComic（成人）](https://archettu6755.github.io/manga-source/venera/jmcomic.js)
+- [E-Hentai（成人）](https://archettu6755.github.io/manga-source/venera/ehentai.js)
 
 浏览入口分布在探索页和分类页中。每个探索页标题包含站点名，避免不同源之间重名。题材、专题、标签、作者、原作和角色使用目录条目及“查看更多”按钮，点击后进入该目录的漫画列表。[入口清单](ENTRYPOINTS.md)记录完整对应关系。
 
 ## 源设置与账号
 
-Komiic 在源设置中可选择原入口 `komiic.com` 或大陆入口 `komiic.cc`。接口、封面、章节图片和网页登录地址随选择更新，切换后刷新作品和目录。两站分别登录，原入口的 Cookie 和令牌不会附加到新入口，也不会在访问受限时自动换站。
+Komiic 在源设置中可选择 `komiic.com` 或大陆入口 `komiic.cc`。默认勾选「同时登录两个官方入口」，一次提交可用同一账号为两站各建一个会话。切换入口后刷新作品和目录。
 
 CopyManga 支持官网入口、大陆／海外资源线路、API 域名与自动地址刷新、网页或 App 搜索及原生账号登录。默认使用 copy4000 大陆入口和大陆线路；使用海外代理时可选择海外线路，并切换 copy20 或 mangacopy 入口。官网入口影响浏览及网页搜索，资源线路影响 API 地域参数和图片请求头。API 留空时从官方网络配置获取地址，手动地址优先；「重新获取」刷新自动地址，保留账号令牌和设备信息。切换线路后重新打开漫画并刷新目录，确保章节图片地址重新获取。
 
 官网在 2026-10-10 标注 copy4000 为大陆访问入口，官方网络配置当天返回 api.copy202601.com，未提供不同的备用 API。用户网络决定直连效果，入口切换不能保证修复图片 CDN。退出登录只清除令牌。详情和章节受到站点限制时会显示错误；匿名接口可能返回空数据，需要在设备上核对官网与账号权限。
 
-Komiic 支持原生账号登录、会话刷新及卷／章节筛选。图片请求携带章节 Referer；登录会话仅附加到 Komiic 自己的图片接口，封面和其他图片域名不携带会话。阅读额度由网站决定。卷和话分别保留，章节键使用固定 `ep:` 前缀，避免 JavaScript 按数字 ID 重排目录。
+Komiic 的「成人内容」在探索页可见，站点要求年龄确认时请在官网完成。读图时按需取票，票据不随封面请求发送。登录后可在「官网续读」查看该账号的作品和最新章页。Venera 的源接口没有阅读进度事件，读图不会写回进度。卷和话分别保留，章节键沿用 `ep:` 前缀。
 
 MangaDex 收录原始语言为日语的日本漫画，不默认译文语言。章节语言默认为「不限译文语言」，可手动选择简体中文、繁体中文、英文或日语。更新后旧的语言设置恢复为不限。章节标题附带语言代码，便于区分不同译文。筛选覆盖列表、官网书单、详情、目录和图片读取；外站、未来发布、空图片或不可用的章节不显示。支持省流图片、标签包含／排除、状态、分级和排序。分类页实时读取标签；搜索选项使用 2026-10-09 核对的 77 个标签，网站新增标签时应更新快照并提高源版本。
 
-CopyManga、Komiic 和再漫画使用 Venera 的原生账号功能。原版应用会保存账号和密码以便重新登录，令牌和 Cookie 也保存在应用数据中；不能将其描述为 Suwatte 的安全存储。源代码不会额外写入密码，也不会向本仓库或发布站点发送账号信息。
+CopyManga、Komiic、再漫画和 JMComic 使用 Venera 的原生账号功能。原版应用会保存账号和密码以便重新登录，令牌和 Cookie 保存在应用数据中。源代码不额外保存密码，也不会把账号发往发布站点。E-Hentai 使用官方论坛网页登录。
+
+JMComic 支持首页推荐、关键词搜索、分话和站点图片重排。E-Hentai 支持最近更新、名称或标签搜索、画廊链接和分页，使用公开的 `e-hentai.org` 入口。两个新源都先提供给 Venera，尚未完成实机验证。
 
 专题和作者等分页目录会读取可访问的目录页，再显示为可点击条目。Komiic 作者使用官网的更新时间升序，并缓存索引十分钟；漫画列表仍按需分页。网站在后续作者页返回 `Offset is too large` 时，保留已读到的条目并显示分页限制提示。大型目录首次打开需要等待网络请求结束。返回部分重复条目时按 ID 去重，整页重复或格式错误会报告失败，不缓存意外中断的目录。
 

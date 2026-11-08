@@ -34,6 +34,8 @@
 | characters | 角色 | `hCharacters` → `comicsByHCharacterId`，`REGULAR` 内容类型 |
 | recommended-week / recommended-month / recommended-year | 本周推荐／本月推荐／年度推荐 | `topRecommendedComics`，`WEEK` / `MONTH` / `YEAR` |
 | random | 随机发现 | `randomComics` |
+| adult | 成人内容 | `randomComics`，内容类型 `H_MANGA` |
+| reading-history | 官网续读 | 登录后读取 `readComicHistory` → `comicByIds` |
 
 分类、标签和作者导航指向各自的漫画列表，不作为漫画作品打开。原作和角色数据由网站提供；空列表保留其入口。搜索页提供题材、状态及双向排序。
 

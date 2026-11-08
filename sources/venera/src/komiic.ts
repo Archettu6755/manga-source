@@ -1,12 +1,15 @@
-import { COMIC_FIELDS, PAGE_SIZE, WEBSITE, WEBSITES, komiicWebsite, komiicUrl, imagePages, numericSerial, readData, requireComic, sessionCookies,
-  type Comic, type ComicChapter } from "@archettu/komiic";
+import { ADULT_TYPE, COMIC_FIELDS, HISTORY_QUERY, ImageTickets, PAGE_SIZE, TICKET_QUERY, WEBSITE, WEBSITES,
+  historyComics, historyPagination, imageKid, imagePages, komiicWebsite, komiicUrl, matureComic, numericSerial, otherWebsite,
+  readData, readingPosition, requireComic, sessionCookies, type Comic, type ComicChapter, type ComicHistory } from "@archettu/komiic";
+import { httpError } from "@archettu/manga-core";
 import { category, header, info, json, list, pageNumber, part, Transport,
-  type SourceStore, type SourceConfig, type ComicItem, type ComicList, type Part, type Option } from "./runtime";
+  type SourceStore, type SourceConfig, type ComicItem, type ComicList, type Part, type Option, type ImageLoadingConfig } from "./runtime";
 
 const FEEDS: [string, string][] = [["latest", "最近更新"], ["popular", "热门漫画"], ["all", "所有漫画"],
   ["newest", "最近上架"], ["completed", "已完结"], ["short", "短篇"], ["categories", "题材分类"],
   ["elements", "标签"], ["authors", "作者列表"], ["originals", "原作"], ["characters", "角色"],
-  ["recommended-week", "本周推荐"], ["recommended-month", "本月推荐"], ["recommended-year", "年度推荐"], ["random", "随机发现"]];
+  ["recommended-week", "本周推荐"], ["recommended-month", "本月推荐"], ["recommended-year", "年度推荐"], ["random", "随机发现"],
+  ["adult", "成人内容"], ["reading-history", "官网续读"]];
 const DIRECTORIES = ["categories", "elements", "authors", "originals", "characters"];
 const CATALOG_PAGE_SIZE = 500;
 const SORTS = ["default-入口默认", "DATE_UPDATED-更新时间", "DATE_CREATED-上架时间", "VIEWS-总观看数", "MONTH_VIEWS-本月观看数", "FAVORITE_COUNT-喜爱数"];
@@ -16,8 +19,14 @@ interface Entry { id: string; name: string; group?: string; type?: string; nameZ
 export function createSource(source: SourceStore): SourceConfig {
   const transport = new Transport(750);
   const refreshing = new Map<string, Promise<void>>();
+  const ticketCaches = new Map<string, ImageTickets>();
   const website = () => komiicWebsite(source.loadSetting("website"));
   const sessionKey = (origin: string, key: string) => origin === WEBSITE ? key : `cc.${key}`;
+  const signedIn = (origin: string) => Boolean(source.loadData(sessionKey(origin, "cookies")) || source.loadData(sessionKey(origin, "token")));
+  function tickets(origin: string): ImageTickets {
+    if (!ticketCaches.has(origin)) ticketCaches.set(origin, new ImageTickets());
+    return ticketCaches.get(origin)!;
+  }
   const headers = (origin: string) => {
     const cookies = source.loadData(sessionKey(origin, "cookies")), token = source.loadData(sessionKey(origin, "token"));
     return { Referer: `${origin}/`, "Content-Type": "application/json",
@@ -36,16 +45,18 @@ export function createSource(source: SourceStore): SourceConfig {
   }
   async function refresh(origin: string) {
     if (!source.loadData(sessionKey(origin, "cookies")) || Date.now() - Number(source.loadData(sessionKey(origin, "refreshedAt")) ?? 0) < 30 * 60_000) return;
+    const session = tickets(origin);
     if (!refreshing.has(origin)) refreshing.set(origin, (async () => {
       const response = await transport.request("POST", `${origin}/auth/refresh`, headers(origin), "{}");
-      if (response.status !== 200 && response.status !== 204) throw new Error(`Komiic 登录刷新失败（HTTP ${response.status}），请重新登录。`);
+      if (ticketCaches.get(origin) !== session) return;
+      if (response.status !== 200 && response.status !== 204) throw httpError(response.status, "Komiic 登录刷新");
       saveSession(origin, header(response, "set-cookie"));
       source.saveData(sessionKey(origin, "refreshedAt"), Date.now());
     })());
-    try { await refreshing.get(origin); } finally { refreshing.delete(origin); }
+    const pending = refreshing.get(origin);
+    try { await pending; } finally { if (refreshing.get(origin) === pending) refreshing.delete(origin); }
   }
-  async function query<T>(operationName: string, text: string, variables: Record<string, unknown>): Promise<T> {
-    const origin = website();
+  async function query<T>(operationName: string, text: string, variables: Record<string, unknown>, origin = website()): Promise<T> {
     await refresh(origin);
     const response = await transport.request("POST", `${origin}/api/query`, headers(origin), JSON.stringify({ operationName, query: text, variables }));
     return readData<T>(response.status, response.status === 200 ? json(response) : null);
@@ -53,7 +64,7 @@ export function createSource(source: SourceStore): SourceConfig {
   const item = (value: Comic): ComicItem => {
     const comic = requireComic(value);
     return { id: comic.id, title: comic.title, cover: komiicUrl(comic.imageUrl, website()), subtitle: comic.authors?.map(author => author.name).join("、"),
-      tags: comic.categories?.map(value => value.name), description: comic.description };
+      tags: [...(matureComic(comic) ? ["成人内容"] : []), ...(comic.categories?.map(value => value.name) ?? [])], description: comic.description };
   };
   function comicList(comics: Comic[], page: number, complete = false): ComicList {
     if (!Array.isArray(comics)) throw new Error("Komiic 漫画列表格式已变化。");
@@ -104,6 +115,7 @@ export function createSource(source: SourceStore): SourceConfig {
   }
   async function browse(key: string, options: string[], page: number): Promise<ComicList> {
     pageNumber(page);
+    if (key === "reading-history") return readHistory(page);
     const defaultOrder = key === "popular" ? "MONTH_VIEWS" : key === "newest" ? "DATE_CREATED" : "DATE_UPDATED";
     const orderBy = !options[0] || options[0] === "default" ? defaultOrder : options[0];
     if (!SORTS.some(sort => sort.split("-")[0] === orderBy)) throw new Error("不支持的漫画排序。");
@@ -138,21 +150,49 @@ export function createSource(source: SourceStore): SourceConfig {
     else if (["recommended-week", "recommended-month", "recommended-year"].includes(key)) {
       field = "topRecommendedComics"; declaration = "$period: RecommendationPeriod!, $pagination: Pagination!, $contentType: ContentType";
       argument = "period: $period, pagination: $pagination, contentType: $contentType";
-      variables = { pagination, period: key === "recommended-week" ? "WEEK" : key === "recommended-month" ? "MONTH" : "YEAR", contentType: "REGULAR" };
-    } else if (key === "random") {
+      variables = { pagination, period: key === "recommended-year" ? "YEAR" : key === "recommended-month" ? "MONTH" : "WEEK", contentType: "REGULAR" };
+    } else if (key === "random" || key === "adult") {
+      if (key === "adult" && page > 1) return list([], page, true);
       field = "randomComics"; declaration = "$pagination: Pagination!, $contentType: ContentType";
-      argument = "pagination: $pagination, contentType: $contentType"; variables = { pagination, contentType: "REGULAR" };
+      argument = "pagination: $pagination, contentType: $contentType"; variables = { pagination, contentType: key === "adult" ? ADULT_TYPE : "REGULAR" };
+      if (key === "adult") { argument += ", adult: true"; variables.pagination = { ...pagination, orderBy: "ID" }; }
     } else if (!["all", "newest", "completed", "short"].includes(key) && !key.startsWith("categories:")) throw new Error("Komiic 不支持该漫画列表。");
     const data = await query<{ comics: Comic[] }>("browseComics", `query browseComics(${declaration}) { comics: ${field}(${argument}) { ${COMIC_FIELDS} } }`, variables);
-    return comicList(data.comics, page);
+    const result = comicList(data.comics, page);
+    return key === "adult" ? { ...result, maxPage: 1 } : result;
   }
   async function options(): Promise<Option[]> {
     return [{ label: "排序", options: SORTS }, { label: "方向", options: ["desc-降序", "asc-升序"] },
       { label: "状态", options: ["all-全部", "ONGOING-连载", "END-完结", "SHORT-短篇"] },
       { label: "题材", options: ["all-全部", ...(await directory("categories")).map(entry => `${entry.id}-${entry.name}`)] }];
   }
+  async function readHistory(page: number): Promise<ComicList> {
+    const origin = website();
+    if (!signedIn(origin)) return list([], page, true);
+    const pagination = historyPagination(page);
+    const { readComicHistory: history } = await query<{ readComicHistory: ComicHistory[] }>("readComicHistory", HISTORY_QUERY, { pagination }, origin);
+    if (!Array.isArray(history)) throw new Error("Komiic 官网续读记录格式已变化。");
+    if (!history.length) return list([], page, true);
+    const { comics } = await query<{ comics: Comic[] }>("comicByIds", `query comicByIds($comicIds: [ID]!) { comics: comicByIds(comicIds: $comicIds) { ${COMIC_FIELDS} } }`, { comicIds: history.map(entry => entry.comicId) }, origin);
+    return list(historyComics(history, comics).map(item), page, history.length < pagination.limit);
+  }
+  function removeSession(origin: string) {
+    ticketCaches.delete(origin);
+    refreshing.delete(origin);
+    for (const key of ["cookies", "token", "refreshedAt"]) source.deleteData(sessionKey(origin, key));
+    Network.deleteCookies(origin);
+  }
+  async function login(origin: string, email: string, password: string) {
+    const response = await transport.request("POST", `${origin}/api/login`, { Referer: `${origin}/`, "Content-Type": "application/json" }, JSON.stringify({ email, password }));
+    if (response.status !== 200 && response.status !== 204) throw httpError(response.status, "Komiic 登录");
+    const token = response.body.trim() ? (json(response) as { token?: string } | null)?.token : undefined;
+    const cookies = header(response, "set-cookie");
+    if (!sessionCookies(cookies) && !token) throw new Error("Komiic 未返回有效登录会话。");
+    removeSession(origin);
+    saveSession(origin, cookies, token);
+  }
   return {
-    ...info("komiic", "Komiic"), version: "1.0.1",
+    ...info("komiic", "Komiic"), version: "1.1.0",
     category: category("Komiic · Archettu", FEEDS.filter(([key]) => !DIRECTORIES.includes(key))),
     explore: FEEDS.map(([key, title]) => ({ title: `Komiic · ${title}`, type: DIRECTORIES.includes(key) ? "multiPartPage" : "multiPageComicList",
       load: async page => {
@@ -163,7 +203,7 @@ export function createSource(source: SourceStore): SourceConfig {
         if (directoryCache.get(`${website()}|${key}`)?.limited) parts.push({ title: `网站限制了后续目录页（已显示 ${entries.length} 项）`, comics: [] });
         return parts;
       } })),
-    categoryComics: { load: (name, key, values, page) => browse(key ?? name, values, page), optionLoader: () => options() },
+    categoryComics: { load: (name, key, values, page) => browse(key ?? name, values, page), optionLoader: (name, key) => (key ?? name) === "reading-history" ? Promise.resolve([]) : options() },
     search: { load: async (keyword, values, page) => {
       pageNumber(page);
       if (!keyword.trim()) return browse("all", [], page);
@@ -173,59 +213,67 @@ export function createSource(source: SourceStore): SourceConfig {
     } },
     comic: {
       loadInfo: async id => {
-        const data = await query<{ comicById: Comic; chaptersByComicId: ComicChapter[] }>("mangaQuery",
-          `query mangaQuery($comicId: ID!) { comicById(comicId: $comicId) { ${COMIC_FIELDS} } chaptersByComicId(comicId: $comicId) { id serial type size dateCreated } }`, { comicId: id });
+        const origin = website();
+        const historyField = signedIn(origin) ? "history: readComicHistoryById(comicId: $comicId) { comicId lastDate chapters { chapterId page updatedAt } }" : "";
+        const data = await query<{ comicById: Comic; chaptersByComicId: ComicChapter[]; history?: ComicHistory }>("mangaQuery",
+          `query mangaQuery($comicId: ID!) { comicById(comicId: $comicId) { ${COMIC_FIELDS} } chaptersByComicId(comicId: $comicId) { id serial type size dateCreated } ${historyField} }`, { comicId: id }, origin);
         const comic = requireComic(data.comicById);
         if (comic.id !== id || !Array.isArray(data.chaptersByComicId)) throw new Error("Komiic 作品或章节格式已变化。");
         const filter = source.loadSetting("chapters") ?? "all";
         if (!["all", "chapter", "book"].includes(String(filter))) throw new Error("不支持的章节类型。");
         const chapters: Record<string, string> = {};
+        const position = readingPosition(data.history);
         for (const chapter of data.chaptersByComicId.filter(chapter => filter === "all" || chapter.type === filter)
           .sort((a, b) => a.type.localeCompare(b.type) || numericSerial(a.serial) - numericSerial(b.serial))) {
           const key = `ep:${chapter.id}`;
           if (!chapter.id || typeof chapter.serial !== "string" || Object.prototype.hasOwnProperty.call(chapters, key)) throw new Error("Komiic 章节数据格式已变化。");
-          chapters[key] = `第 ${chapter.serial} ${chapter.type === "book" ? "卷" : "话"} · ${chapter.size}P`;
+          chapters[key] = `第 ${chapter.serial} ${chapter.type === "book" ? "卷" : "话"} · ${chapter.size}P${position?.chapterId === chapter.id ? ` · 官网读到第 ${position.page + 1} 页` : ""}`;
         }
-        return { title: comic.title, cover: komiicUrl(comic.imageUrl, website()), description: comic.description, subtitle: comic.status,
-          tags: { 作者: comic.authors?.map(author => author.name) ?? [], 题材: comic.categories?.map(category => category.name) ?? [] },
-          chapters, url: `${website()}/comic/${encodeURIComponent(id)}` };
+        return { title: comic.title, cover: komiicUrl(comic.imageUrl, origin), description: comic.description, subtitle: comic.status,
+          tags: { 作者: comic.authors?.map(author => author.name) ?? [], 题材: comic.categories?.map(category => category.name) ?? [], ...(matureComic(comic) ? { 分级: ["成人内容"] } : {}) },
+          chapters, url: `${origin}/comic/${encodeURIComponent(id)}` };
       },
       loadEp: async (_id, chapter) => {
         if (!chapter) throw new Error("请选择章节。");
-        const data = await query<{ imagesByChapterId: { kid: string }[] }>("imagesByChapterId",
-          "query imagesByChapterId($chapterId: ID!) { imagesByChapterId(chapterId: $chapterId) { kid } }", { chapterId: rawChapter(chapter) });
-        return { images: imagePages(data.imagesByChapterId, website()) };
-      },
-      onImageLoad: async (url, id, chapter) => {
         const origin = website();
-        if (!url.startsWith(`${origin}/api/image/`)) return { headers: { Referer: `${origin}/` } };
+        const data = await query<{ imagesByChapterId: { kid: string }[] }>("imagesByChapterId",
+          "query imagesByChapterId($chapterId: ID!) { imagesByChapterId(chapterId: $chapterId) { kid } }", { chapterId: rawChapter(chapter) }, origin);
+        return { images: imagePages(data.imagesByChapterId, origin) };
+      },
+      onImageLoad: async (url, id, chapter): Promise<ImageLoadingConfig> => {
+        const origin = website();
+        const kid = imageKid(url, origin);
+        if (!kid) return { headers: { Referer: `${origin}/` } };
+        const referer = `${origin}/comic/${encodeURIComponent(id)}/chapter/${encodeURIComponent(rawChapter(chapter))}/images/all`;
+        const cache = tickets(origin);
+        const ticket = await cache.get(kid, async () => (await query<{ getImageTicket: unknown }>("getImageTicket", TICKET_QUERY, { kid }, origin)).getImageTicket);
+        if (ticketCaches.get(origin) !== cache) throw new Error("Komiic 登录状态已变化，请重新打开章节。");
+        if (ticket) return { url: ticket.url, headers: { Referer: referer, "X-Image-Ticket": ticket.ticket } };
         await refresh(origin);
-        return { headers: { ...headers(origin), Referer: `${origin}/comic/${encodeURIComponent(id)}/chapter/${encodeURIComponent(rawChapter(chapter))}/images/all` } };
+        return { headers: { ...headers(origin), Referer: referer } };
       },
       onThumbnailLoad: () => ({ headers: { Referer: `${website()}/` } }),
     },
     account: {
       login: async (email, password) => {
         const origin = website();
-        const response = await transport.request("POST", `${origin}/api/login`, { Referer: `${origin}/`, "Content-Type": "application/json" }, JSON.stringify({ email, password }));
-        if (response.status !== 200 && response.status !== 204) throw new Error(`Komiic 登录失败（HTTP ${response.status}）。`);
-        let token: string | undefined;
-        if (response.body.trim()) token = (json(response) as { token?: string }).token;
-        const cookies = header(response, "set-cookie");
-        if (!sessionCookies(cookies) && !token) throw new Error("Komiic 未返回有效登录会话。");
-        source.deleteData(sessionKey(origin, "cookies")); source.deleteData(sessionKey(origin, "token"));
-        saveSession(origin, cookies, token);
+        await login(origin, email, password);
+        if (source.loadSetting("syncBoth") !== false) {
+          const other = otherWebsite(origin);
+          removeSession(other);
+          try { await login(other, email, password); }
+          catch (error) { if (typeof UI !== "undefined") UI.showMessage(`当前入口已登录，${other.slice(8)} 登录未完成：${(error as Error).message}`); }
+        }
         return true;
       },
       logout: () => {
-        const origin = website();
-        source.deleteData(sessionKey(origin, "cookies")); source.deleteData(sessionKey(origin, "token")); source.deleteData(sessionKey(origin, "refreshedAt"));
-        Network.deleteCookies(origin);
+        removeSession(website());
       },
       get registerWebsite() { return `${website()}/register`; },
     },
-    settings: { website: { title: "访问入口（分别登录）", type: "select", default: WEBSITE,
+    settings: { website: { title: "访问入口", type: "select", default: WEBSITE,
       options: WEBSITES.map(site => ({ value: site.id, text: site.title })) },
+      syncBoth: { title: "同时登录两个官方入口", type: "switch", default: true },
       chapters: { title: "章节列表", type: "select", default: "all",
       options: [{ value: "all", text: "卷与章节" }, { value: "chapter", text: "仅章节" }, { value: "book", text: "仅卷" }] } },
   };

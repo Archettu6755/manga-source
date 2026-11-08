@@ -14,6 +14,8 @@ export interface Details extends Omit<ComicItem, "id" | "tags"> {
   url: string;
 }
 export interface ComicList { comics: ComicItem[]; maxPage: number }
+export interface ImageLoadingConfig { headers: Record<string, string>; url?: string; modifyImage?: string }
+export interface Cookie { name: string; value: string; domain?: string; path?: string; secure?: boolean; httpOnly?: boolean; expires?: number }
 export interface Target { page: "category"; attributes: { category: string; param: string } }
 export interface Part { title: string; comics: ComicItem[]; viewMore?: Target }
 export interface Option { label: string; options: string[]; type?: "select" | "multi-select" | "dropdown" }
@@ -50,19 +52,23 @@ export interface SourceConfig {
   comic: {
     loadInfo(id: string): Promise<Details>;
     loadEp(id: string, chapter: string | null): Promise<{ images: string[] }>;
-    onImageLoad?: (url: string, id: string, chapter: string) => { headers: Record<string, string> } | Promise<{ headers: Record<string, string> }>;
+    onImageLoad?: (url: string, id: string, chapter: string) => ImageLoadingConfig | Promise<ImageLoadingConfig>;
     onThumbnailLoad?: (url: string) => { headers: Record<string, string> };
     onClickTag?: (namespace: string, tag: string) => Target | null;
   };
   settings?: Record<string, Setting>;
-  account?: { login(username: string, password: string): Promise<boolean>; logout(): void; registerWebsite: string };
+  account?: { login?(username: string, password: string): Promise<boolean>; logout(): void; registerWebsite: string | null;
+    loginWithWebview?: { url: string; checkStatus(url: string, title: string): boolean; onLoginSuccess?(): void | Promise<void> } };
 }
 declare global {
   const Network: {
     get(url: string, headers?: Record<string, string>): Promise<Response>;
     post(url: string, headers: Record<string, string>, data: string): Promise<Response>;
     deleteCookies(url: string): void;
+    getCookies(url: string): Promise<Cookie[]>;
+    setCookies(url: string, cookies: Cookie[]): void;
   };
+  const UI: { showMessage(message: string): void };
 }
 export const BASE = "https://archettu6755.github.io/manga-source/venera";
 export function info(id: string, name: string) {

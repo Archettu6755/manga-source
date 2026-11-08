@@ -1,5 +1,5 @@
 import vm from "node:vm";
-import type { Response, SourceConfig, SourceStore } from "../src/runtime";
+import type { Cookie, Response, SourceConfig, SourceStore } from "../src/runtime";
 const { bundle }: { bundle(id: string): string } = require("../scripts/bundle.cjs");
 export interface Call { method: string; url: string; headers: Record<string, string>; body?: string }
 export type Handler = (call: Call) => Partial<Response> | Promise<Partial<Response>>;
@@ -11,6 +11,7 @@ export function scriptFor(id: string): string {
 export function fixture(id: string, handler: Handler = () => { throw new Error("Unexpected network request"); }, settings: Record<string, unknown> = {}, initial: Record<string, unknown> = {}) {
   const calls: Call[] = [], delays: number[] = [];
   const data = new Map(Object.entries(initial));
+  const cookieJar = new Map<string, Cookie[]>();
   let now = Date.now();
   class Clock extends Date { static now() { return now; } }
   class Source implements SourceStore {
@@ -24,7 +25,9 @@ export function fixture(id: string, handler: Handler = () => { throw new Error("
   const network = {
     get: (url: string, headers: Record<string, string> = {}) => dispatch({ method: "GET", url, headers }),
     post: (url: string, headers: Record<string, string>, body: string) => dispatch({ method: "POST", url, headers, body }),
-    deleteCookies: (url: string) => { calls.push({ method: "DELETE_COOKIES", url, headers: {} }); },
+    deleteCookies: (url: string) => { cookieJar.delete(url); calls.push({ method: "DELETE_COOKIES", url, headers: {} }); },
+    getCookies: async (url: string) => cookieJar.get(url) ?? [],
+    setCookies: (url: string, cookies: Cookie[]) => { cookieJar.set(url, cookies); },
   };
   async function dispatch(call: Call): Promise<Response> {
     calls.push(call);
@@ -38,7 +41,7 @@ export function fixture(id: string, handler: Handler = () => { throw new Error("
   const className = firstClass.split("class")[1].split("extends ComicSource")[0].trim();
   vm.runInContext(`(() => { ${script}\nthis.temp = new ${className}(); }).call()`, context, { timeout: 5000 });
   const source = context.temp as SourceConfig & SourceStore;
-  return { source, data, settings, calls, delays, context };
+  return { source, data, settings, calls, delays, context, cookieJar };
 }
 export function response(value: unknown, status = 200, headers: Response["headers"] = {}): Response {
   return { status, headers, body: JSON.stringify(value) };

@@ -34,8 +34,17 @@
 | characters | 角色 | 分页读取 `hCharacters` → `character:<id>` |
 | recommended-week / recommended-month / recommended-year | 本周推荐／本月推荐／年度推荐 | `topRecommendedComics` 的 `WEEK` / `MONTH` / `YEAR` |
 | random | 随机发现 | `randomComics` |
+| adult | 成人内容 | `randomComics`，内容类型 `H_MANGA` |
+| reading-history | 官网续读 | 登录后读取 `readComicHistory` → `comicByIds` |
 
-目录项通过“查看更多”进入对应作品列表。原作、角色和推荐请求使用 `REGULAR`；上游为空时仍保留入口。原作／角色关联 ID 通过 `comicByIds` 补齐信息，保持关联顺序。漫画列表提供题材、连载状态及双向排序；作者目录按官网更新时间升序读取。检查时网站的后续作者页返回 `Offset is too large`，源保留已读到的目录并显示限制提示，不删除作者入口。
+目录项通过“查看更多”进入对应作品列表。原作、角色和常规推荐请求使用 `REGULAR`；上游为空时仍保留入口。原作／角色关联 ID 通过 `comicByIds` 补齐信息，保持关联顺序。漫画列表提供题材、连载状态及双向排序；作者目录按官网更新时间升序读取。网站限制后续作者页时，源保留已读到的目录并显示提示。
+
+## JMComic 和 E-Hentai
+
+| 图源 | 入口 ID／名称 | 数据来源 |
+| --- | --- | --- |
+| JMComic | `recommended`／首页推荐 | `/promote`，搜索使用 `/search`，详情和目录使用 `/album` |
+| E-Hentai | `latest`／最近更新 | `e-hentai.org` 列表与搜索游标，详情使用 `gdata`，画廊保留网页页码 |
 
 ## MangaDex
 

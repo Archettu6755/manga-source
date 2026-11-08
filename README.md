@@ -1,6 +1,6 @@
 # 自用漫画源
 
-为 Suwatte、Venera 和 Tachimanga 维护独立的 CopyManga、Komiic、MangaDex、漫画柜和再漫画 源。仓库保存适配代码，漫画内容由设备直接请求原网站。
+为 Suwatte、Venera 和 Tachimanga 维护独立的 CopyManga、Komiic、MangaDex、漫画柜和再漫画源。Venera 另提供 JMComic 和 E-Hentai 两个成人图源。漫画内容由设备直接请求原网站。
 
 目前仅在 **Suwatte** 实际使用测试过。Venera 和 Tachimanga 尚未完成实机验证；编译、自动化测试和接口检查通过不代表已在这两款阅读器中验证阅读体验。
 
@@ -39,8 +39,10 @@ https://archettu6755.github.io/manga-source/tachimanga/index.min.json
 | 拷贝漫画 · Archettu | 中文漫画 | 官网入口、大陆／海外线路、API 域名与刷新、搜索接口、账号登录 |
 | 漫画柜 · Archettu | 简体／繁体中文漫画 | 完整索引、四周期排行、成人提示确认、图片服务器选择 |
 | 再漫画 · Archettu | 简体中文为主的漫画 | 官网推荐、动态网页索引、App 分类、排行、账号登录 |
-| Komiic · Archettu | 以繁体中文为主的漫画 | komiic.com／komiic.cc 入口、卷与章节筛选、账号登录 |
+| Komiic · Archettu | 繁体中文漫画，含成人入口 | 两站登录、官网续读、卷与章节筛选、图片票据 |
 | MangaDex（日漫）· Archettu | 原始语言为日语的日本漫画，不默认译文语言 | 默认不限；可选简体中文、繁体中文、英文或日语，支持节省图片流量 |
+| JMComic（成人，仅 Venera） | JMComic 漫画 | 首页推荐、搜索、账号登录、章节图片重排 |
+| E-Hentai（成人，仅 Venera） | E-Hentai 画廊 | 更新、标签搜索、论坛网页登录 |
 
 MangaDex 的原始语言筛选同时作用于列表、详情、目录和图片读取。英文翻译的韩漫与欧美原创漫画不会出现在这个源中。外站章节、未发布章节和不可用章节不列入目录。
 
@@ -50,11 +52,13 @@ CopyManga 已补齐大陆详情和章节接口使用的 `request_id` 流程。�
 
 ## 大陆入口与可达性诊断
 
-Komiic 的图源设置新增「访问入口」。大陆网络可选择 `komiic.cc`，原入口 `komiic.com` 继续保留。接口、封面、图片和网页链接随所选入口更新；两个域名分别登录，切换后刷新当前作品和目录。不会将原入口的登录会话发送到新入口，也不会在访问受限时自动换站。
+Komiic 的「访问入口」可选 `komiic.com` 或大陆入口 `komiic.cc`。勾选「同时登录两个官方入口」可用同一账号登录两站，会话按域名保存。三端都能查看「官网续读」；Suwatte 在登录后会把实际阅读位置写回官网，Venera 和 Tachimanga 显示官网记录的章和页。阅读器之间各自登录同一个账号。
+
+Komiic 的「成人内容」入口默认可见。若网站要求年龄确认，请在官网完成。实际读图时按需取得站点签发的图片票据。
 
 CopyManga 已默认使用 `copy4000` 大陆入口和大陆资源线路。其他图源本轮未核实到明确公布的大陆专用入口，保留现有地址；核对范围见 [协议与入口记录](docs/source-protocols.md)。
 
-统一检查五个图源，默认使用 Suwatte 模拟器，检查到章节图片地址：
+统一诊断覆盖三个阅读器共有的五个图源，默认使用 Suwatte 模拟器，检查到章节图片地址：
 
 ```sh
 npm run diagnose -- --komiic-site cc
@@ -106,6 +110,8 @@ npm run smoke:browse -- mangadex
 npm run smoke:venera -- copymanga --browse-only
 npm run smoke:venera -- komiic
 npm run smoke:venera -- mangadex
+npm run smoke:venera -- jmcomic --browse-only
+npm run smoke:venera -- ehentai --browse-only
 ```
 
 `serve` 命令供同一局域网中的 iPad 测试；`smoke` 使用官方模拟器访问真实接口，默认检查 CopyManga，也可选择 Komiic 或 MangaDex。它不登录账号，不保存漫画图片，遇到访问限制时报告失败阶段。Komiic 图片接口不支持 HEAD，检查时会 GET 一张图片，消耗一张图片额度。离线测试与构建通过不能替代设备上的阅读验证。

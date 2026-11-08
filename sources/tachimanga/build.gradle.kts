@@ -10,8 +10,8 @@ android {
         applicationId = "eu.kanade.tachiyomi.extension.all.archettu"
         minSdk = 21
         targetSdk = 35
-        versionCode = 4
-        versionName = "1.4.4"
+        versionCode = 5
+        versionName = "1.4.5"
     }
     signingConfigs {
         create("repository") {

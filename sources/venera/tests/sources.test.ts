@@ -9,11 +9,11 @@ const fixture: typeof baseFixture = (id, handler, settings, initial) => baseFixt
     : handler ? handler(call) : Promise.reject(new Error("Unexpected network request")), settings, initial);
 
 test("scripts follow the original loader, register unique keys and preserve every explore entry", () => {
-  for (const [id, count] of [["copymanga", 10], ["komiic", 15], ["mangadex", 10], ["manhuagui", 10], ["zaimanhua", 9]] as const) {
+  for (const [id, count, version] of [["copymanga", 10, "1.0.3"], ["komiic", 17, "1.1.0"], ["mangadex", 10, "1.0.2"], ["manhuagui", 10, "1.0.1"], ["zaimanhua", 9, "1.0.1"], ["jmcomic", 1, "1.0.0"], ["ehentai", 1, "1.0.0"]] as const) {
     assert.match(scriptFor(id).split("\n")[0], /^class [a-z]+ extends ComicSource \{$/i);
     const { source, context } = fixture(id);
     assert.equal(source.key, `archettu_${id}`);
-    assert.equal(source.version, id === "copymanga" ? "1.0.3" : id === "mangadex" ? "1.0.2" : "1.0.1");
+    assert.equal(source.version, version);
     assert.equal(source.url, `https://archettu6755.github.io/manga-source/venera/${id}.js`);
     assert.equal(source.explore.length, count);
     assert.equal(new Set(source.explore.map(page => page.title)).size, count);
@@ -68,7 +68,7 @@ test("CopyManga signed login encodes Unicode, keeps a stable device and clears o
     assert.equal(call.headers["x-auth-signature"], createHmac("sha256", Buffer.from("M2FmMDg1OTAzMTEwMzJlZmUwNjYwNTUwYTA1NjNhNTM=", "base64")).update(timestamp).digest("hex"));
     return response({ code: 200, results: call.method === "POST" ? { token: "fixture-token" } : { comic: copyComic, groups: { default: { path_word: "default", name: "正篇" } } } });
   }, { api: "https://api.copy202601.com" });
-  await source.account!.login("用户", "中文密码");
+  await source.account!.login!("用户", "中文密码");
   const body = new URLSearchParams(calls[0].body);
   assert.equal(body.get("username"), "用户");
   assert.equal(Buffer.from(body.get("password")!, "base64").toString("utf8"), `中文密码-${body.get("salt")}`);
@@ -76,7 +76,7 @@ test("CopyManga signed login encodes Unicode, keeps a stable device and clears o
   source.account!.logout();
   assert.equal(data.has("token"), false);
   assert.equal(data.get("device"), device);
-  await source.account!.login("用户", "中文密码");
+  await source.account!.login!("用户", "中文密码");
   assert.equal(calls[0].headers.pseudoid, calls[1].headers.pseudoid);
   assert.equal(data.has("password"), false);
 });
@@ -119,7 +119,7 @@ test("Komiic every comic entrance maps to its GraphQL field, period, status and 
   const { source, calls } = fixture("komiic", () => response({ data: { comics: [komiicComic] } }));
   const expected: Record<string, string> = { 最近更新: "recentUpdate", 热门漫画: "hotComics", 所有漫画: "comicByCategories", 最近上架: "comicByCategories",
     已完结: "comicByCategories", 短篇: "comicByCategories", 本周推荐: "topRecommendedComics", 本月推荐: "topRecommendedComics", 年度推荐: "topRecommendedComics", 随机发现: "randomComics" };
-  for (const page of source.explore.filter(page => page.type === "multiPageComicList")) {
+  for (const page of source.explore.filter(page => page.type === "multiPageComicList" && expected[page.title.split(" · ")[1]])) {
     await page.load(2);
     const request = JSON.parse(calls.at(-1)!.body!);
     const title = page.title.split(" · ")[1];
@@ -155,7 +155,7 @@ test("Komiic author directory follows pagination, caches entries and navigates t
 test("Komiic empty original/character/tag directories retain their entrances", async () => {
   const { source } = fixture("komiic", () => response({ data: { entries: [] } }));
   for (const index of [6, 7, 9, 10]) assert.deepEqual(plain(await source.explore[index].load(1)), []);
-  assert.equal(source.explore.length, 15);
+  assert.equal(source.explore.length, 17);
 });
 test("Komiic reference lists look up comic metadata and preserve relationship order", async () => {
   const { source } = fixture("komiic", call => response({ data: { comics: JSON.parse(call.body!).operationName === "comicByIds"
@@ -166,6 +166,7 @@ test("Komiic reference lists look up comic metadata and preserve relationship or
 test("Komiic session cookies refresh once and remain confined to its own image host", async () => {
   const { source, calls, data } = fixture("komiic", call => call.url.endsWith("/auth/refresh")
     ? response({}, 204, { "Set-Cookie": ["komiic-access=new; Path=/", "komiic-refresh=refresh; Path=/"] })
+    : JSON.parse(call.body!).operationName === "getImageTicket" ? response({ errors: [{ message: 'Cannot query field "getImageTicket" on type "Query".' }] })
     : response({ data: { comics: [komiicComic] } }), {}, { cookies: "komiic-access=old; komiic-refresh=refresh", refreshedAt: 0 });
   const [a, b] = await Promise.all([source.comic.onImageLoad!("https://komiic.com/api/image/kid", "comic", "chapter"), source.explore[0].load(1)]);
   assert.equal(calls.filter(call => call.url.endsWith("/auth/refresh")).length, 1);

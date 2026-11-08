@@ -21,11 +21,12 @@ test("Venera Komiic cc routes metadata, covers, page URLs and native registratio
 });
 
 test("Venera maintains independent cc credentials, image headers and logout while preserving legacy com data", async () => {
-  const { source, data, settings, calls } = fixture("komiic", call => response({}, 200, call.url.endsWith("/api/login") ? { "set-cookie": "komiic-access-token=cc-session; Path=/" } : {}),
-    { website: mainland }, { cookies: "komiic-access-token=com-session", token: "com-token", refreshedAt: Date.now() });
+  const { source, data, settings, calls } = fixture("komiic", call => call.url.endsWith("/api/login") ? response({}, 200, { "set-cookie": "komiic-access-token=cc-session; Path=/" })
+    : response({ errors: [{ message: 'Cannot query field "getImageTicket" on type "Query".' }] }),
+    { website: mainland, syncBoth: false }, { cookies: "komiic-access-token=com-session", token: "com-token", refreshedAt: Date.now() });
   const before = await source.comic.onImageLoad!("https://komiic.cc/api/image/p", "comic", "ep:c");
   assert.equal(before.headers.Cookie, undefined);
-  await source.account!.login("fixture@example.invalid", "fixture-only");
+  await source.account!.login!("fixture@example.invalid", "fixture-only");
   const image = await source.comic.onImageLoad!("https://komiic.cc/api/image/p", "comic", "ep:c");
   assert.equal(image.headers.Cookie, "komiic-access-token=cc-session");
   assert.equal(image.headers.Referer, "https://komiic.cc/comic/comic/chapter/c/images/all");

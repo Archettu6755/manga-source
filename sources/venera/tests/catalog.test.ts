@@ -23,7 +23,7 @@ test("Venera Zaimanhua preserves twelve rankings, dynamic website indexes and to
   assert.equal(ranks.length, 12);
   const categories = await source.explore.find(feed => feed.title.endsWith("官网分类／字母索引"))!.load(1) as Part[];
   assert.equal(categories.length, 4);
-  await source.account!.login("测试", "password");
+  await source.account!.login!("测试", "password");
   assert.equal(store.get("token"), "fixture-token");
   assert.deepEqual(Object.keys((await source.comic.loadInfo("123")).chapters), ["ep:11", "ep:22", "ep:33"]);
   assert.deepEqual(plain((await source.comic.loadEp("123", "ep:22")).images), data.zaimanhua.pages.page_url_hd);

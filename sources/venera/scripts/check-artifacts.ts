@@ -5,7 +5,7 @@ import { getQuickJS, shouldInterruptAfterDeadline } from "quickjs-emscripten";
 
 async function main() {
   const catalog = JSON.parse(fs.readFileSync("dist/index.json", "utf8")) as { key: string; url: string; name: string; version: string }[];
-  assert.deepEqual(catalog.map(entry => entry.key).sort(), ["archettu_copymanga", "archettu_komiic", "archettu_mangadex", "archettu_manhuagui", "archettu_zaimanhua"]);
+  assert.deepEqual(catalog.map(entry => entry.key).sort(), ["archettu_copymanga", "archettu_ehentai", "archettu_jmcomic", "archettu_komiic", "archettu_mangadex", "archettu_manhuagui", "archettu_zaimanhua"]);
   const sites = JSON.parse(fs.readFileSync(path.join("..", "..", "fixtures", "sites.json"), "utf8"));
   const QuickJS = await getQuickJS();
   for (const entry of catalog) {
@@ -21,6 +21,7 @@ async function main() {
     try {
       const setup = `
         const data = {};
+        const id = ${JSON.stringify(id)};
         const settings = { api: "https://api.copy202601.com" };
         const sites = ${JSON.stringify(sites)};
         class ComicSource {
@@ -34,6 +35,14 @@ async function main() {
         const chapter = { id: 'chapter', attributes: { translatedLanguage: 'en', chapter: '1', pages: 2 }, relationships: [{ id: 'fixture', type: 'manga' }] };
         const Network = {
           async get(url, headers) {
+            if (id === 'jmcomic') return { status: 200, headers: {}, body: JSON.stringify({ code: 200,
+              data: url.includes('/chapter?') ? { images: ['00001.jpg', '00002.jpg'] } : [{ type: 'promote', content: [{ id: 500001, name: 'Fixture' }] }] }) };
+            if (id === 'ehentai') {
+              const body = url.includes('/g/') ? '<div id="gdt"><a href="/s/0000000001/23-1">1</a><a href="/s/0000000002/23-2">2</a></div>'
+                : url.includes('/s/') ? '<img id="img" src="https://fixture.hath.network/image.jpg">'
+                : '<table class="itg"><tr><td><a href="/g/23/0123456789/"><div class="glink">Fixture</div></a></td></tr></table>';
+              return { status: 200, headers: {}, body };
+            }
             if (url.startsWith('https://marketing.aiacgn.com/')) return { status: 200, headers: {}, body: JSON.stringify({ code: 200, results: { request_id: 'fixture-id' } }) };
             if (${JSON.stringify(id)} === 'manhuagui') return { status: 200, headers: {}, body: url.endsWith('22.html') ? sites.manhuagui.packed : url.includes('/comic/') ? sites.manhuagui.detail : sites.manhuagui.list };
             if (${JSON.stringify(id)} === 'zaimanhua') return { status: 200, headers: {}, body: JSON.stringify({ errno: 0, data: url.includes('/comic/chapter/') ? { data: sites.zaimanhua.pages } : [sites.zaimanhua.listItem] }) };
@@ -50,7 +59,9 @@ async function main() {
           },
           async post(url, headers, payload) {
             const request = JSON.parse(payload);
+            if (id === 'ehentai') return { status: 200, headers: {}, body: JSON.stringify({ gmetadata: [{ gid: 23, token: '0123456789', title: 'Fixture', filecount: '2' }] }) };
             const data = request.operationName === 'imagesByChapterId' ? { imagesByChapterId: [{ kid: '1' }, { kid: '2' }] }
+              : request.operationName === 'getImageTicket' ? { getImageTicket: { kid: request.variables.kid, url: 'https://public.komiic.com/image.jpg', ticket: 'fixture-ticket', expiresAt: new Date(Date.now()+60000).toISOString() } }
               : { comics: [{ id: 'fixture', title: 'Fixture', imageUrl: 'https://images.example/cover.jpg', status: 'ONGOING' }] };
             return { status: 200, headers: {}, body: JSON.stringify({ data }) };
           }
@@ -60,8 +71,13 @@ async function main() {
         globalThis.failure = null;
         (async () => {
           const added = ['manhuagui', 'zaimanhua'].includes(${JSON.stringify(id)});
-          const pages = await temp.comic.loadEp(added ? '123' : 'fixture', added ? '22' : 'chapter');
+          const comicId = id === 'ehentai' ? '23-0123456789' : id === 'jmcomic' ? '500001' : added ? '123' : 'fixture';
+          const chapterId = id === 'ehentai' ? 'ep:gallery' : id === 'jmcomic' ? 'ep:500001' : added ? '22' : 'chapter';
+          const pages = await temp.comic.loadEp(comicId, chapterId);
           if (pages.images.length !== 2) throw new Error('Missing chapter pages');
+          if (id === 'komiic' && (await temp.comic.onImageLoad(pages.images[0], comicId, chapterId)).headers['X-Image-Ticket'] !== 'fixture-ticket') throw new Error('Missing Komiic image ticket');
+          if (id === 'ehentai' && (await temp.comic.onImageLoad(pages.images[0], comicId, chapterId)).url !== 'https://fixture.hath.network/image.jpg') throw new Error('Invalid E-Hentai viewer image');
+          if (id === 'jmcomic' && !temp.comic.onImageLoad(pages.images[0], comicId, chapterId).modifyImage) throw new Error('Missing JMComic image rearrangement');
           if (${JSON.stringify(id)} === 'copymanga' && pages.images[0] !== 'https://images.example/1.jpg') throw new Error('Incorrect CopyManga page ordering');
           const catalog = await temp.explore.find(page => page.type === 'multiPageComicList').load(1);
           if (catalog.comics[0].title !== (added ? '测试作品' : 'Fixture')) throw new Error('Invalid catalog');

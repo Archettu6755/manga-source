@@ -32,6 +32,18 @@ class ProtocolTest {
         assertTrue(SourceFailures.connection(java.net.SocketTimeoutException(), "marketing.aiacgn.com").message!!.contains("大陆参数服务"))
         assertTrue(SourceFailures.http(402, "Komiic").message!!.contains("额度"))
     }
+    @Test fun komiicTicketsKeepTheSignedUrlAndRejectExpiredOrForeignImages() {
+        val expiry = "2030-11-09T00:01:00.123456+08:00"
+        val url = "https://public.komiic.com/image.jpg?signature=fixture"
+        val now = KomiicProtocol.date("2030-11-08T16:00:00Z")!!
+        val result = KomiicProtocol.ticket("kid", "kid", url, "fixture-ticket", expiry, now)
+        assertEquals(url, result.url)
+        assertEquals(60_123L, result.expiresAt - now)
+        assertThrows(IOException::class.java) { KomiicProtocol.ticket("kid", "kid", "https://komiic.com.evil.invalid/image.jpg", "fixture", expiry, now) }
+        assertThrows(IOException::class.java) { KomiicProtocol.ticket("kid", "kid", url, "fixture", expiry, now + 61_000) }
+        assertFalse(KomiicProtocol.ticketUnsupported("permission denied；Cannot query field getImageTicket on type Query"))
+        assertTrue(KomiicProtocol.mature("H_MANGA", false, 0))
+    }
     @Test fun copyRequestIdsAreRequiredOnlyForMainlandProtectedEndpoints() {
         for (path in listOf("comic2/test", "comic/test/group/default/chapters", "comic/test/chapter2/chapter")) {
             assertTrue(CopyProtocol.needsRequestId(path, "1")); assertFalse(CopyProtocol.needsRequestId(path, "0"))

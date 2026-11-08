@@ -37,12 +37,14 @@ App 接口使用 `https://v4api.zaimanhua.com/app/v1`，官网入口使用 `http
 | 站点 | Suwatte ID／版本 | Venera key／版本 | Tachimanga ID |
 | --- | --- | --- | --- |
 | CopyManga | `zh.copymanga`／6 | `archettu_copymanga`／1.0.3 | `790675500000000001` |
-| Komiic | `zh.komiic`／3 | `archettu_komiic`／1.0.1 | `790675500000000002` |
+| Komiic | `zh.komiic`／4 | `archettu_komiic`／1.1.0 | `790675500000000002` |
 | MangaDex | `en.mangadex`／4 | `archettu_mangadex`／1.0.2 | `790675500000000003` |
 | 漫画柜 | `zh.manhuagui`／2 | `archettu_manhuagui`／1.0.1 | `790675500000000004` |
 | 再漫画 | `zh.zaimanhua`／2 | `archettu_zaimanhua`／1.0.1 | `790675500000000005` |
+| JMComic | 暂未适配 | `archettu_jmcomic`／1.0.0 | 暂未适配 |
+| E-Hentai | 暂未适配 | `archettu_ehentai`／1.0.0 | 暂未适配 |
 
-当前表格包含 2026-10-26 的入口与错误提示更新。Tachimanga 扩展版本为 1.4.4，版本代码为 4，继续使用原仓库证书。MangaDex 保持日语原作筛选，默认不限译文语言。
+Tachimanga 扩展版本为 1.4.5，版本代码为 5，继续使用原仓库证书和原有五个源 ID。MangaDex 保持日语原作筛选，默认不限译文语言。
 
 发布前从仓库根目录执行 `npm run check`、`npm test` 和 `npm run build`。构建另行执行 Suwatte 产物回调、Venera QuickJS 加载和 APK 签名／内容核对。
 
@@ -77,3 +79,13 @@ CopyManga 的 [官网](https://www.copy4000.com/) 明示该地址用于大陆访
 | 再漫画 | 浏览和搜索可用，测试作品权限受限 | 列表 20 项、搜索 20 项；详情返回 `canRead: false` 后停止，未请求目录或图片。 |
 
 诊断命令、报告字段和手动 GitHub Actions 入口见 [诊断说明](diagnostics.md)。网络错误提示现在区分连接中断、超时、账号权限、额度和限频；非 JSON 的 HTTP 403 也保留访问限制提示。
+
+## 2026-11-09 Komiic 与 Venera 新源
+
+Komiic 的「成人内容」使用官网 `randomComics` 的 `H_MANGA` 模式。章节仍先读取图片 ID，实际请求图片时用 `getImageTicket` 取票，并按签发地址发送 `X-Image-Ticket`。仅当服务器明确表示票据字段不存在时，使用旧图片接口；额度、权限和网络错误会结束此次请求。
+
+登录两个入口时，分别向 `komiic.com` 和 `komiic.cc` 提交同一账号，按域名保存各自会话。阅读位置通过 `readComicHistory` 和 `readComicHistoryById` 从官网获取。Suwatte 用阅读进度事件调用 `addReadComicHistoryV2`；Venera 和 Tachimanga 显示最新章页。各阅读器需分别登录同一账号。参考 [Komiic 官网前端](https://komiic.cc/assets/index-97tYF0_m.js) 和 [Suwatte 进度接口](https://www.suwatte.app/developers/progress-sync/)。
+
+JMComic 与 E-Hentai 先接入 Venera。JMComic 使用 App 接口的签名和响应格式，图片按站点分段规则在阅读器中重排。E-Hentai 使用 `gdata` 读取资料，画廊与图片查看页使用 `e-hentai.org`；通过官方论坛登录。协议参考 [JMComic-Crawler-Python](https://github.com/hect0x7/JMComic-Crawler-Python) 和 [E-Hentai API](https://ehwiki.org/wiki/API)。
+
+本机匿名抽查中，JMComic 首页返回 156 项，测试作品读到 62 话和首话 69 个图片地址；E-Hentai 列表返回 25 项，测试画廊读到 4 个图片查看页。没有登录真实账号、申请图片票据或下载漫画图片。Venera 和 Tachimanga 尚未完成实机验证。
