@@ -1,6 +1,6 @@
 # 自用漫画源
 
-为 Suwatte、Venera 和 Tachimanga 维护独立的 CopyManga、Komiic、MangaDex、漫画柜和再漫画源。Venera 另提供 JMComic 和 E-Hentai 两个成人图源。漫画内容由设备直接请求原网站。
+为 Suwatte、Venera 和 Tachimanga 维护独立的 CopyManga、Komiic、MangaDex、漫画柜和再漫画源。漫画内容由设备直接请求原网站。
 
 目前仅在 **Suwatte** 实际使用测试过。Venera 和 Tachimanga 尚未完成实机验证；编译、自动化测试和接口检查通过不代表已在这两款阅读器中验证阅读体验。
 
