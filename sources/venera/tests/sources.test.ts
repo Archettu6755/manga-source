@@ -9,10 +9,15 @@ const fixture: typeof baseFixture = (id, handler, settings, initial) => baseFixt
     : handler ? handler(call) : Promise.reject(new Error("Unexpected network request")), settings, initial);
 
 test("scripts follow the original loader, register unique keys and preserve every explore entry", () => {
-  for (const [id, count, version] of [["copymanga", 10, "1.0.3"], ["komiic", 17, "1.1.0"], ["mangadex", 10, "1.0.2"], ["manhuagui", 10, "1.0.1"], ["zaimanhua", 9, "1.0.1"], ["jmcomic", 1, "1.0.0"], ["ehentai", 1, "1.0.0"]] as const) {
+  const expected = [
+    ["copymanga", "拷贝漫画", 10, "1.0.4"], ["komiic", "Komiic", 17, "1.1.1"], ["mangadex", "MangaDex", 10, "1.0.3"],
+    ["manhuagui", "漫画柜", 10, "1.0.2"], ["zaimanhua", "再漫画", 9, "1.0.2"], ["jmcomic", "禁漫天堂", 1, "1.0.1"], ["ehentai", "E-Hentai", 1, "1.0.1"],
+  ] as const;
+  for (const [id, name, count, version] of expected) {
     assert.match(scriptFor(id).split("\n")[0], /^class [a-z]+ extends ComicSource \{$/i);
     const { source, context } = fixture(id);
     assert.equal(source.key, `archettu_${id}`);
+    assert.equal(source.name, name);
     assert.equal(source.version, version);
     assert.equal(source.url, `https://archettu6755.github.io/manga-source/venera/${id}.js`);
     assert.equal(source.explore.length, count);
@@ -21,6 +26,34 @@ test("scripts follow the original loader, register unique keys and preserve ever
     assert.equal(typeof context.document, "undefined");
     assert.equal(typeof context.URL, "undefined");
   }
+});
+test("CopyManga auto uses the selected API host after a parameter timeout and preserves access errors", async () => {
+  const api = "https://api.copy202601.com";
+  const page = response({ code: 200, results: { chapter: { words: [0], contents: [{ url: "https://images.example/page.jpg" }] } } });
+  const marketing = (url: string) => url.startsWith("https://marketing.aiacgn.com/");
+  const { source, calls } = baseFixture("copymanga", call => {
+    if (marketing(call.url)) throw new Error("connection timed out");
+    return page;
+  }, { api });
+  const first = await source.comic.loadEp("comic", "chapter");
+  await source.comic.loadEp("comic", "next");
+  assert.equal(calls.length, 3);
+  assert.equal(calls.filter(call => marketing(call.url)).length, 1);
+  for (const call of calls.slice(1)) {
+    const url = new URL(call.url);
+    assert.equal(url.origin, api);
+    assert.equal(url.searchParams.get("in_mainland"), "false");
+    assert.equal(url.searchParams.has("request_id"), false);
+    assert.equal(call.headers.region, "0");
+  }
+  assert.equal((await source.comic.onImageLoad!(first.images[0], "comic", "chapter")).headers.region, "0");
+
+  const manual = baseFixture("copymanga", () => { throw new Error("connection timed out"); }, { api, region: "1" });
+  await assert.rejects(() => manual.source.comic.loadEp("comic", "chapter"), /超时/);
+  assert.equal(manual.calls.length, 1);
+  const limited = baseFixture("copymanga", () => response({ code: 429 }, 429), { api });
+  await assert.rejects(() => limited.source.comic.loadEp("comic", "chapter"), /429/);
+  assert.equal(limited.calls.length, 1);
 });
 test("CopyManga catalog sends filters, case-sensitive themes and second-page offset", async () => {
   const { source, calls } = fixture("copymanga", () => ({ body: `<main><div class="exemptComic-box" total="51" list='${JSON.stringify([copyComic])}'></div></main>` }));
@@ -289,10 +322,13 @@ test("MangaDex directory follows actual page size and excludes unreadable chapte
   assert.ok(calls.filter(call => call.url.includes("/feed")).every(call => !new URL(call.url).searchParams.has("translatedLanguage[]")));
 });
 test("MangaDex images validate chapter ownership, language, page count and saver ordering", async () => {
+  const images = { hash: "hash", data: ["2.jpg", "1.jpg"], dataSaver: ["2s.jpg", "1s.jpg"] };
   const { source, settings } = fixture("mangadex", call => response(call.url.includes("/chapter/") ? { result: "ok", data: chapter }
-    : call.url.includes("/at-home/") ? { result: "ok", baseUrl: "https://images.example", chapter: { hash: "hash", data: ["2.jpg", "1.jpg"], dataSaver: ["2s.jpg", "1s.jpg"] } }
+    : call.url.includes("/at-home/") ? { result: "ok", baseUrl: "https://images.example", chapter: images }
     : { result: "ok", data: japanese }));
   assert.deepEqual(plain((await source.comic.loadEp("manga", "chapter")).images), ["https://images.example/data/hash/2.jpg", "https://images.example/data/hash/1.jpg"]);
+  images.data = [];
+  assert.deepEqual(plain((await source.comic.loadEp("manga", "chapter")).images), ["https://images.example/data-saver/hash/2s.jpg", "https://images.example/data-saver/hash/1s.jpg"]);
   settings.dataSaver = true;
   assert.deepEqual(plain((await source.comic.loadEp("manga", "chapter")).images), ["https://images.example/data-saver/hash/2s.jpg", "https://images.example/data-saver/hash/1s.jpg"]);
   settings.chapterLanguage = "ja";

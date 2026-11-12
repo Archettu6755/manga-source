@@ -192,8 +192,8 @@ export function createSource(source: SourceStore): SourceConfig {
     saveSession(origin, cookies, token);
   }
   return {
-    ...info("komiic", "Komiic"), version: "1.1.0",
-    category: category("Komiic · Archettu", FEEDS.filter(([key]) => !DIRECTORIES.includes(key))),
+    ...info("komiic", "Komiic"), version: "1.1.1",
+    category: category("Komiic", FEEDS.filter(([key]) => !DIRECTORIES.includes(key))),
     explore: FEEDS.map(([key, title]) => ({ title: `Komiic · ${title}`, type: DIRECTORIES.includes(key) ? "multiPartPage" : "multiPageComicList",
       load: async page => {
         if (!DIRECTORIES.includes(key)) return browse(key, [], page);

@@ -13,7 +13,7 @@ export function createCatalog(source: SourceStore, factory: (request: Request) =
   };
   return {
     ...info(site.id, site.name),
-    category: category(`${site.name} · Archettu`, site.feeds.filter(feed => !feed.directory).map(feed => [feed.id, feed.title])),
+    category: category(site.name, site.feeds.filter(feed => !feed.directory).map(feed => [feed.id, feed.title])),
     explore: site.feeds.map(feed => ({ title: `${site.name} · ${feed.title}`, type: feed.directory ? "multiPartPage" : "multiPageComicList",
       load: async page => {
         if (!feed.directory) return browse(feed.id, [], page);

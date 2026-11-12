@@ -3,13 +3,14 @@ import { networkRequest } from "../../network";
 import { httpError } from "@archettu/manga-core";
 import {
   appHeaders, createDevice, DEFAULT_API, isCopyApi, loginBody, normalizeApi,
-  readResults, copyRegion, copyWebsite, imageHeaders, REQUEST_ID_URL, needsRequestId, readRequestId, type DeviceInfo,
+  readResults, copyRegion, copyWebsite, imageHeaders, REQUEST_ID_URL, CopyRoute, readRequestId, type DeviceInfo,
 } from "@archettu/copymanga";
 
 declare const SecureStore: STTStore;
 
 export class CopyMangaApi {
   readonly client: Client;
+  private readonly route = new CopyRoute();
   private discoveredApi?: string;
 
   constructor() {
@@ -23,6 +24,7 @@ export class CopyMangaApi {
 
   reset(): void {
     this.discoveredApi = undefined;
+    this.route.reset();
   }
 
   private getResponse(url: string, config?: RequestConfig) {
@@ -42,46 +44,44 @@ export class CopyMangaApi {
   async refresh(): Promise<void> {
     this.reset();
     await ObjectStore.remove("copymanga.discoveredApi");
-    await this.discover();
+    await this.discover(copyRegion(await ObjectStore.string("copymanga.region")));
   }
 
   async region(): Promise<"0" | "1"> {
-    return copyRegion(await ObjectStore.string("copymanga.region"));
+    return this.route.region(await ObjectStore.string("copymanga.region"));
   }
 
   async website(): Promise<string> {
     return copyWebsite(await ObjectStore.string("copymanga.website"));
   }
 
-  private async headers(includeToken = true): Promise<Record<string, string>> {
+  private async headers(region: "0" | "1", includeToken = true): Promise<Record<string, string>> {
     let device = await ObjectStore.object("copymanga.device") as DeviceInfo | null;
     if (!device) {
       device = createDevice();
       await ObjectStore.set("copymanga.device", device);
     }
-    return appHeaders(device, includeToken ? await SecureStore.string("copymanga.token") ?? "" : "", new Date(), await this.region());
+    return appHeaders(device, includeToken ? await SecureStore.string("copymanga.token") ?? "" : "", new Date(), region);
   }
 
-  async baseUrl(): Promise<string> {
+  private async baseUrl(region: "0" | "1"): Promise<string> {
     const manual = await ObjectStore.string("copymanga.api");
     if (manual) return normalizeApi(manual);
     if (this.discoveredApi) return this.discoveredApi;
-    const region = await this.region();
     const cached = await ObjectStore.object("copymanga.discoveredApi");
     if (cached && typeof cached.url === "string" && isCopyApi(cached.url) &&
         cached.region === region && typeof cached.at === "number" && Date.now() - cached.at < 86_400_000) {
       this.discoveredApi = cached.url;
       return cached.url;
     }
-    return this.discover();
+    return this.discover(region);
   }
 
-  private async discover(): Promise<string> {
-    const region = await this.region();
+  private async discover(region: "0" | "1"): Promise<string> {
     let restricted = false;
     try {
       const response = await this.getResponse("https://api.copy-manga.com/api/v3/system/network2", {
-        params: { platform: "3" }, headers: await this.headers(false),
+        params: { platform: "3" }, headers: await this.headers(region, false),
       });
       restricted = [210, 401, 402, 403, 429, 451].includes(response.status);
       const body = await this.json(response, "CopyManga 地址发现服务");
@@ -105,14 +105,14 @@ export class CopyMangaApi {
   }
 
   async get<T>(path: string, params: Record<string, Primitive> = {}): Promise<T> {
-    const base = await this.baseUrl(), region = await this.region();
-    let requestId: Record<string, string> = {};
-    if (needsRequestId(path, region)) {
-      const response = await this.getResponse(REQUEST_ID_URL, { headers: imageHeaders(new Date(), region) });
-      requestId = { request_id: readRequestId(response.status, await this.json(response, "CopyManga 大陆参数服务")) };
-    }
+    const setting = await ObjectStore.string("copymanga.region");
+    const base = await this.baseUrl(copyRegion(setting));
+    const { region, requestId } = await this.route.forRequest(path, setting, async () => {
+      const response = await this.getResponse(REQUEST_ID_URL, { headers: imageHeaders(new Date(), "1"), timeout: setting === "1" ? 20_000 : 6_000 });
+      return readRequestId(response.status, await this.json(response, "CopyManga 大陆参数服务"));
+    });
     const response = await this.getResponse(`${base}/api/v3/${path}`, {
-      params: { in_mainland: region === "1", ...params, ...requestId }, headers: await this.headers(),
+      params: { in_mainland: region === "1", ...params, ...(requestId ? { request_id: requestId } : {}) }, headers: await this.headers(region),
     });
     return readResults<T>(response.status, await this.json(response));
   }
@@ -144,10 +144,11 @@ export class CopyMangaApi {
   }
 
   async login(username: string, password: string): Promise<void> {
+    const region = copyRegion(await ObjectStore.string("copymanga.region"));
     const fields = loginBody(username, password, Math.floor(1_000 + Math.random() * 9_000));
     const body = Object.entries(fields).map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(value)}`).join("&");
-    const response = await this.postResponse(`${await this.baseUrl()}/api/v3/login`, body, {
-      headers: { ...await this.headers(false), "Content-Type": "application/x-www-form-urlencoded" },
+    const response = await this.postResponse(`${await this.baseUrl(region)}/api/v3/login`, body, {
+      headers: { ...await this.headers(region, false), "Content-Type": "application/x-www-form-urlencoded" },
     });
     const results = readResults<{ token: string }>(response.status, await this.json(response, "CopyManga 登录接口"));
     if (typeof results.token !== "string" || !results.token.trim()) throw new Error("CopyManga 登录未返回有效令牌。");

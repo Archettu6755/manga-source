@@ -17,7 +17,7 @@ const INCLUDES: [string, string][] = [["includes[]", "cover_art"], ["includes[]"
 
 export default class MangaDex implements Delegate {
   static info: SourceInfo = {
-    id: "en.mangadex", name: "MangaDex（日漫）· Archettu", version: 4, website: WEBSITE,
+    id: "en.mangadex", name: "MangaDex", version: 5, website: WEBSITE,
     languages: ["zh-Hans", "zh-Hant", "en", "ja"], rating: ContentRating.UNKNOWN, minSupportedAppVersion: "7.0.0",
   };
   private readonly api = new HttpClient({ timeout: 20_000, retries: 0, rateLimit: { permits: 1, period: 0.5 }, validateStatus: () => true });

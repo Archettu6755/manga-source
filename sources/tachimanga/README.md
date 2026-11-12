@@ -1,10 +1,10 @@
 # Tachimanga 漫画源
 
-为 App Store 正式版 Tachimanga 提供拷贝漫画、Komiic、MangaDex（日漫）、漫画柜和再漫画。使用扩展 API 1.4，一个 APK 包含五个独立图源，包名为 `eu.kanade.tachiyomi.extension.all.archettu`。Tachimanga 官方的[扩展说明](https://tachimanga.app/help/guides/extensions_guide.html)和[仓库说明](https://tachimanga.app/help/guides/repositories.html)介绍了接口与安装格式。
+为 App Store 正式版 Tachimanga 提供拷贝漫画、Komiic、MangaDex、漫画柜和再漫画。使用扩展 API 1.4，一个 APK 包含五个独立图源，包名为 `eu.kanade.tachiyomi.extension.all.archettu`。接口与安装格式见官方[扩展说明](https://tachimanga.app/help/guides/extensions_guide.html)和[仓库说明](https://tachimanga.app/help/guides/repositories.html)。
 
 ## 安装
 
-在「浏览 → 扩展 → ＋ → 扩展仓库」中添加以下地址，刷新列表，再安装「杕的自用漫画源」。图源语言筛选启用中文和多语言（Multi）。
+在「浏览 → 扩展 → ＋ → 扩展仓库」中添加以下地址，刷新列表，再安装「自用漫画源」。图源语言筛选启用中文和多语言（Multi）。
 
 ```text
 https://archettu6755.github.io/manga-source/tachimanga/index.min.json
@@ -18,7 +18,7 @@ Tachimanga 的图源接口提供热门、更新、搜索和筛选器。其他浏
 
 拷贝的专题、题材，以及 Komiic 的题材、标签、作者、原作和角色使用可缓存的目录下拉框。首次选择对应浏览入口并搜索，会加载目录并显示提示。随后重置筛选器，再选择该入口及具体条目。空分类仍保留；上游限制作者后续分页时会说明已加载范围。加载目录的提示不表示 APK 无效或漫画服务器故障。
 
-拷贝默认使用大陆官网入口和大陆资源线路，API 留空自动发现。海外代理可选择海外线路和 copy20 或 mangacopy 官网。保留网页／App 两种搜索接口；修改线路后刷新漫画目录。设置页面可以登录、退出及刷新 API 缓存。账号密码只用于提交登录，提交完成或失败后清除密码；令牌保存在阅读器的图源偏好数据中。
+拷贝漫画默认使用 copy4000、网页搜索和「自动（大陆优先）」。大陆参数服务连不上时，本次会话使用海外线路。手动选择的线路优先。API 域名留空时自动获取。切换线路后刷新漫画目录。设置页可以登录、退出及刷新 API。提交登录后清除密码，令牌存于图源偏好数据中。
 
 Komiic 支持邮箱登录、会话刷新、卷／章节筛选和图片额度提示。图片请求使用章节 Referer；会话只发送到 Komiic。MangaDex 收录原始语言为日语的日本漫画，不默认译文语言。章节语言默认为「不限译文语言」，可手动选择简体中文、繁体中文、英文或日语。更新后旧的语言设置恢复为不限；章节标题附带语言代码。日语原作及手动选择的章节语言筛选覆盖书单、详情和章节图片。公开 API 的漫画分页最多访问 10,000 条，超出范围需要缩小筛选条件。
 

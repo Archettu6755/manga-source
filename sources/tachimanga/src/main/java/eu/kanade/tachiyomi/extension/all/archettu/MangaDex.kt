@@ -15,7 +15,7 @@ import java.util.TimeZone
 
 class MangaDex : PersonalSource() {
     override val id = 790675500000000003L
-    override val name = "MangaDex（日漫）· 杕"
+    override val name = "MangaDex"
     override val lang = "all"
     override val baseUrl = "https://mangadex.org"
     private val apiUrl = "https://api.mangadex.org"
@@ -137,7 +137,7 @@ class MangaDex : PersonalSource() {
         if (!MangaDexProtocol.readableChapter(value, mangaId, language)) throw IOException("章节语言、所属作品或访问状态不符合此源设置。")
         val reply = api("/at-home/server/$chapterId")
         val data = reply.getJSONObject("chapter")
-        val saver = prefs.getString("quality", "normal") == "saver"
+        val saver = prefs.getString("quality", "normal") == "saver" || !data.has("data") || data.optJSONArray("data")?.length() == 0
         val files = data.getJSONArray(if (saver) "dataSaver" else "data")
         val server = reply.getString("baseUrl")
         if (!server.startsWith("https://") || files.length() == 0 || files.length() != value.getJSONObject("attributes").getInt("pages")) throw IOException("MangaDex 返回了不完整的章节图片。")

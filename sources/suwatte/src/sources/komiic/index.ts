@@ -17,7 +17,7 @@ type Progress = { comicId: string; chapterId: string; fraction: number };
 
 export default class Komiic implements Delegate {
   static info: SourceInfo = {
-    id: "zh.komiic", name: "Komiic · Archettu", version: 4, website: WEBSITE,
+    id: "zh.komiic", name: "Komiic", version: 5, website: WEBSITE,
     languages: ["zh-Hant"], rating: ContentRating.UNKNOWN, minSupportedAppVersion: "7.0.0",
   };
   private readonly api = new HttpClient({ timeout: 20_000, retries: 0, maxRedirects: 0,

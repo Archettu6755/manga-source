@@ -12,7 +12,7 @@ import java.io.IOException
 
 class Manhuagui : CatalogSource("manhuagui") {
     override val id = 790675500000000004L
-    override val name = "漫画柜 · 杕"
+    override val name = "漫画柜"
     override val lang = "zh"
     override val baseUrl = "https://www.manhuagui.com"
     private var lastRequest = 0L

@@ -1,6 +1,6 @@
 import { httpError } from "@archettu/manga-core";
 import {
-  appHeaders, createDevice, DEFAULT_API, isCopyApi, loginBody, normalizeApi, readResults, REQUEST_ID_URL, needsRequestId, readRequestId,
+  appHeaders, createDevice, DEFAULT_API, isCopyApi, loginBody, normalizeApi, readResults, REQUEST_ID_URL, CopyRoute, COPY_REGIONS, readRequestId,
   WEBSITE, COPY_WEBSITES, copyWebsite, copyRegion, imageHeaders, readList, requireComic, orderedPages, parseComicList, parseCardList,
   parseTopics, parseThemes, parseHome, WEB_PAGE_SIZE, RECOMMEND_PAGE_SIZE, TOPIC_PAGE_SIZE,
   CHAPTER_PAGE_SIZE, PAGE_SIZE, RANK_PERIODS, REGIONS, STATUSES,
@@ -14,41 +14,41 @@ const FEEDS: [string, string][] = [["home", "首页推荐"], ["all", "发现／�
   ["latest", "最近更新"], ["popular", "热门漫画"], ["completed", "已完结"]];
 class CopyApi {
   readonly transport = new Transport(1500);
+  private readonly route = new CopyRoute();
   private discovered?: string;
   private discoveredRegion?: string;
   constructor(private readonly source: SourceStore) {}
-  region(): "0" | "1" { return copyRegion(this.source.loadSetting("region")); }
+  region(): "0" | "1" { return this.route.region(this.source.loadSetting("region")); }
   website(): string { return copyWebsite(this.source.loadSetting("website")); }
   private webHeaders() { return { Referer: `${this.website()}/`,
     "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 Version/18.5 Safari/605.1.15" }; }
   async refresh() {
     this.discovered = undefined;
+    this.route.reset();
     this.source.deleteData("discoveredApi");
     // Discover even when a manual address is configured, without changing that setting.
-    await this.discover();
+    await this.discover(copyRegion(this.source.loadSetting("region")));
   }
-  private headers(token = true) {
+  private headers(region: "0" | "1", token = true) {
     let device = this.source.loadData("device") as DeviceInfo | undefined;
     if (!device) { device = createDevice(); this.source.saveData("device", device); }
-    return appHeaders(device, token ? String(this.source.loadData("token") ?? "") : "", new Date(), this.region());
+    return appHeaders(device, token ? String(this.source.loadData("token") ?? "") : "", new Date(), region);
   }
-  async base(): Promise<string> {
+  private async base(region: "0" | "1"): Promise<string> {
     const manual = this.source.loadSetting("api");
     if (manual) return normalizeApi(String(manual));
-    const region = this.region();
     if (this.discovered && this.discoveredRegion === region) return this.discovered;
     const cached = this.source.loadData("discoveredApi") as { url?: string; at?: number; region?: string } | undefined;
     if (cached?.url && cached.region === region && isCopyApi(cached.url) && Date.now() - Number(cached.at) < 86_400_000) {
       this.discoveredRegion = region;
       return this.discovered = cached.url;
     }
-    return this.discover();
+    return this.discover(region);
   }
-  private async discover(): Promise<string> {
-    const region = this.region();
+  private async discover(region: "0" | "1"): Promise<string> {
     let restricted = false;
     try {
-      const response = await this.transport.request("GET", "https://api.copy-manga.com/api/v3/system/network2?platform=3", this.headers(false));
+      const response = await this.transport.request("GET", "https://api.copy-manga.com/api/v3/system/network2?platform=3", this.headers(region, false));
       restricted = [210, 401, 402, 403, 429, 451].includes(response.status);
       const body = json(response);
       restricted ||= [210, 401, 402, 403, 429, 451].includes(Number((body as { code?: number })?.code));
@@ -65,13 +65,14 @@ class CopyApi {
     return this.discovered = DEFAULT_API;
   }
   async get<T>(path: string, values: Record<string, string | number | boolean> = {}): Promise<T> {
-    const base = await this.base(), region = this.region();
-    let requestId: Record<string, string> = {};
-    if (needsRequestId(path, region)) {
-      const response = await this.transport.request("GET", REQUEST_ID_URL, imageHeaders(new Date(), region));
-      requestId = { request_id: readRequestId(response.status, json(response)) };
-    }
-    const response = await this.transport.request("GET", `${base}/api/v3/${path}?${params({ in_mainland: region === "1", ...values, ...requestId })}`, this.headers());
+    const setting = this.source.loadSetting("region");
+    const base = await this.base(copyRegion(setting));
+    const { region, requestId } = await this.route.forRequest(path, setting, async () => {
+      const response = await this.transport.request("GET", REQUEST_ID_URL, imageHeaders(new Date(), "1"));
+      return readRequestId(response.status, json(response));
+    });
+    const query = params({ in_mainland: region === "1", ...values, ...(requestId ? { request_id: requestId } : {}) });
+    const response = await this.transport.request("GET", `${base}/api/v3/${path}?${query}`, this.headers(region));
     return readResults<T>(response.status, json(response));
   }
   async web(path: string, values: Record<string, string | number | boolean> = {}) {
@@ -89,8 +90,9 @@ class CopyApi {
     return readResults<ApiList<Comic>>(response.status, json(response));
   }
   async login(username: string, password: string) {
-    const response = await this.transport.request("POST", `${await this.base()}/api/v3/login`,
-      { ...this.headers(false), "Content-Type": "application/x-www-form-urlencoded" },
+    const region = copyRegion(this.source.loadSetting("region"));
+    const response = await this.transport.request("POST", `${await this.base(region)}/api/v3/login`,
+      { ...this.headers(region, false), "Content-Type": "application/x-www-form-urlencoded" },
       params(loginBody(username, password, Math.floor(1000 + Math.random() * 9000))));
     const result = readResults<{ token: string }>(response.status, json(response));
     if (!result.token?.trim()) throw new Error("CopyManga 登录未返回有效令牌。");
@@ -172,12 +174,12 @@ export function createSource(source: SourceStore): SourceConfig {
     const value = await api.get<Details>(`comic2/${encodeURIComponent(id)}`, { platform: 3 });
     requireComic(value.comic);
     if (!value.groups || typeof value.groups !== "object" || Array.isArray(value.groups)) throw new Error("CopyManga 缺少章节分组。");
-    lastDetails = { id, connection, at: Date.now(), value };
+    lastDetails = { id, connection: `${api.website()}|${api.region()}|${source.loadSetting("api") ?? ""}`, at: Date.now(), value };
     return value;
   }
   return {
-    ...info("copymanga", "拷贝漫画"), version: "1.0.3",
-    category: { ...category("拷贝漫画 · Archettu", FEEDS.filter(([key]) => !["home", "themes", "topics", "ranks"].includes(key))), enableRankingPage: true },
+    ...info("copymanga", "拷贝漫画"), version: "1.0.4",
+    category: { ...category("拷贝漫画", FEEDS.filter(([key]) => !["home", "themes", "topics", "ranks"].includes(key))), enableRankingPage: true },
     explore: FEEDS.map(([key, title]) => ({ title: `拷贝漫画 · ${title}`, type: ["home", "themes", "topics", "ranks"].includes(key) ? "multiPartPage" : "multiPageComicList",
       load: async page => {
         if (key === "themes") return (await themes()).map(theme => part(`theme:${theme.path_word}`, `${theme.name}（${theme.count} 部）`));
@@ -235,7 +237,7 @@ export function createSource(source: SourceStore): SourceConfig {
     account: { login: (username, password) => api.login(username, password), logout: () => { source.deleteData("token"); lastDetails = undefined; }, registerWebsite: `${WEBSITE}/reg` },
     settings: {
       website: { title: "官网入口（浏览与网页搜索）", type: "select", default: "mainland", options: COPY_WEBSITES.map(entry => ({ value: entry.id, text: entry.title })) },
-      region: { title: "资源线路（直连选大陆，代理可选海外）", type: "select", default: "1", options: [{ value: "1", text: "大陆线路" }, { value: "0", text: "海外线路" }] },
+      region: { title: "资源线路", type: "select", default: "auto", options: COPY_REGIONS.map(({ id, title }) => ({ value: id, text: title })) },
       api: { title: "API 域名（留空自动获取）", type: "input", default: "" },
       refreshApi: { title: "刷新自动 API（手动地址留空时生效）", type: "callback", buttonText: "重新获取", callback: async () => { lastDetails = undefined; themeCache = undefined; await api.refresh(); } },
       search: { title: "搜索接口", type: "select", default: "web", options: [{ value: "web", text: "网页搜索" }, { value: "app", text: "App 搜索" }] },

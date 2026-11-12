@@ -18,31 +18,33 @@ import java.util.UUID
 
 class CopyManga : PersonalSource() {
     override val id = 790675500000000001L
-    override val name = "拷贝漫画 · 杕"
+    override val name = "拷贝漫画"
     override val lang = "zh"
     override val baseUrl get() = when (prefs.getString("website", "mainland")) {
         "global" -> "https://www.copy20.com"
         "legacy" -> "https://www.mangacopy.com"
         else -> "https://www.copy4000.com"
     }
-    private val region get() = prefs.getString("region", "1") ?: "1"
+    private val route = CopyProtocol.Route()
+    private val regionSetting get() = prefs.getString("region", "auto")
+    private val region get() = route.region(regionSetting)
     private var discovered: Pair<String, String>? = null
     private var cachedDetails: Triple<String, Long, JSONObject>? = null
     private var lastRequestAt = 0L
     private val entries = listOf("popular" to "热门漫画", "latest" to "最近更新", "home" to "首页推荐", "all" to "发现／全部漫画",
         "topics" to "专题", "themes" to "题材", "ranks" to "排行榜", "recommend" to "漫画推荐", "newest" to "全新上架", "completed" to "已完结")
 
-    private fun publicHeaders() = Headers.Builder().set("User-Agent", "COPY/3.0.9").set("source", "copyApp")
+    private fun publicHeaders(region: String = this.region) = Headers.Builder().set("User-Agent", "COPY/3.0.9").set("source", "copyApp")
         .set("referer", "com.copymanga.app-3.0.9").set("version", "3.0.9").set("platform", "3").set("region", region)
         .set("dt", SimpleDateFormat("yyyy.MM.dd", Locale.US).format(Date()))
     override fun headersBuilder() = publicHeaders()
     override fun imageRequest(page: Page): Request = Request.Builder().url(page.imageUrl!!).headers(publicHeaders().build()).build()
-    private fun appHeaders(token: Boolean = true): Headers {
+    private fun appHeaders(token: Boolean = true, region: String = CopyProtocol.region(regionSetting)): Headers {
         val timestamp = (System.currentTimeMillis() / 1000).toString()
         val pseudoid = prefs.getString("pseudoid", null) ?: UUID.randomUUID().toString().replace("-", "").take(16).also {
             prefs.edit().putString("pseudoid", it).apply()
         }
-        return publicHeaders().set("deviceinfo", "7654321V-1234").set("device", "AP1A.240505.005").set("pseudoid", pseudoid)
+        return publicHeaders(region).set("deviceinfo", "7654321V-1234").set("device", "AP1A.240505.005").set("pseudoid", pseudoid)
             .set("authorization", if (token) "Token ${prefs.getString("token", "")}".trimEnd() else "Token")
             .set("umstring", "b4c89ca4104ea9a97750314d791520ac")
             .set("x-auth-timestamp", timestamp).set("x-auth-signature", CopyProtocol.copySignature(timestamp)).build()
@@ -52,7 +54,7 @@ class CopyManga : PersonalSource() {
         if (wait > 0) Thread.sleep(wait)
         lastRequestAt = System.currentTimeMillis()
     }
-    private fun apiBase(): String {
+    private fun apiBase(region: String = CopyProtocol.region(regionSetting)): String {
         val manual = prefs.getString("api", "").orEmpty().trim().removeSuffix("/")
         if (manual.isNotBlank()) {
             val url = if (manual.startsWith("https://")) manual else "https://$manual"
@@ -65,7 +67,7 @@ class CopyManga : PersonalSource() {
             discovered = region to saved; return saved
         }
         pause()
-        val result = JSONObject(get("https://api.copy-manga.com/api/v3/system/network2?platform=3", appHeaders(false)))
+        val result = JSONObject(get("https://api.copy-manga.com/api/v3/system/network2?platform=3", appHeaders(false, region)))
         if (result.optInt("code") != 200) throw IOException("拷贝网络配置获取失败：${result.text("message")}")
         val host = result.getJSONObject("results").getJSONArray("api").getJSONArray(0).getString(0)
         if (!Regex("api\\.(copy[a-z0-9-]*|mangacopy|copymanga)\\.(com|online|net|org|site)").matches(host)) throw IOException("拷贝返回了无法识别的 API 域名。")
@@ -75,17 +77,20 @@ class CopyManga : PersonalSource() {
         return url
     }
     private fun api(path: String, values: Map<String, Any> = emptyMap()): JSONObject {
-        val base = apiBase()
-        val requestId = if (CopyProtocol.needsRequestId(path, region)) {
+        val setting = regionSetting
+        val base = apiBase(CopyProtocol.region(setting))
+        val (region, requestId) = route.forRequest(path, setting) {
             pause()
-            val result = results(JSONObject(get(CopyProtocol.REQUEST_ID_URL, publicHeaders().build())))
+            val result = results(JSONObject(get(CopyProtocol.REQUEST_ID_URL, publicHeaders("1").build())))
             val value = result.text("request_id")
             if (value.isBlank()) throw IOException("拷贝未返回大陆接口所需的 request_id，请稍后重试。")
-            mapOf("request_id" to value)
-        } else emptyMap()
-        val url = queryUrl("$base/api/v3/$path", mapOf("in_mainland" to (region == "1")) + values + requestId)
+            value
+        }
+        val parameters = mapOf("in_mainland" to (region == "1")) + values +
+            (requestId?.let { mapOf("request_id" to it) } ?: emptyMap())
+        val url = queryUrl("$base/api/v3/$path", parameters)
         pause()
-        return results(JSONObject(get(url, appHeaders())))
+        return results(JSONObject(get(url, appHeaders(region = region))))
     }
     private fun results(body: JSONObject): JSONObject {
         if (body.optInt("code") != 200) throw IOException("拷贝请求失败（${body.optInt("code")}）：${body.text("message")}")
@@ -233,7 +238,7 @@ class CopyManga : PersonalSource() {
         Choice("area", "地区", listOf("" to "全部", "0" to "日漫", "1" to "韩漫", "2" to "美漫")), Choice("status", "状态", listOf("" to "全部", "0" to "连载", "1" to "完结", "2" to "短篇")))
     override fun setupPreferenceScreen(screen: PreferenceScreen) {
         choice(screen, "website", "官网入口", listOf("mainland" to "大陆入口（copy4000）", "global" to "通用入口（copy20）", "legacy" to "原入口（mangacopy）"), "mainland")
-        choice(screen, "region", "资源线路", listOf("1" to "大陆线路", "0" to "海外线路"), "1")
+        choice(screen, "region", "资源线路", listOf("auto" to "自动（大陆优先）", "1" to "大陆线路", "0" to "海外线路"), "auto")
         text(screen, "api", "API 域名（留空自动获取）")
         choice(screen, "search", "搜索接口", listOf("web" to "网页搜索", "app" to "App 搜索"), "web")
         text(screen, "username", "拷贝账号"); text(screen, "password", "密码（仅供提交登录）", password = true)
@@ -248,7 +253,13 @@ class CopyManga : PersonalSource() {
                 "登录成功"
             } finally { prefs.edit().remove("password").apply() }
         }
-        action(screen, "刷新自动 API") { prefs.edit().remove("discoveredApi").apply(); discovered = null; cachedDetails = null; "自动 API 缓存已清除，下次请求时重新获取。" }
+        action(screen, "刷新自动 API") {
+            prefs.edit().remove("discoveredApi").apply()
+            discovered = null
+            cachedDetails = null
+            route.reset()
+            "自动 API 缓存已清除，下次请求时重新获取。"
+        }
         action(screen, "退出登录") { prefs.edit().remove("token").remove("password").apply(); cachedDetails = null; "已退出登录" }
     }
 }

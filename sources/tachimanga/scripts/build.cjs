@@ -30,7 +30,7 @@ const entry = { name: `Tachiyomi: ${catalog.name}`, pkg: catalog.package, apk, l
 fs.writeFileSync(path.join(output, "index.min.json"), JSON.stringify([entry]));
 fs.writeFileSync(path.join(output, "index.json"), `${JSON.stringify([entry], null, 2)}\n`);
 const fingerprint = fs.readFileSync(path.join(root, "signing-fingerprint.txt"), "utf8").trim();
-fs.writeFileSync(path.join(output, "repo.json"), JSON.stringify({ meta: { name: catalog.name, shortName: "杕", website: "https://archettu6755.github.io/manga-source/tachimanga/", signingKeyFingerprint: fingerprint } }, null, 2) + "\n");
+fs.writeFileSync(path.join(output, "repo.json"), JSON.stringify({ meta: { name: catalog.name, shortName: "自用", website: "https://archettu6755.github.io/manga-source/tachimanga/", signingKeyFingerprint: fingerprint } }, null, 2) + "\n");
 fs.copyFileSync(path.join(root, "web", "index.html"), path.join(output, "index.html"));
 fs.copyFileSync(path.join(root, "THIRD_PARTY_NOTICES.txt"), path.join(output, "THIRD_PARTY_NOTICES.txt"));
 console.log(`Built Tachimanga ${catalog.version}: ${catalog.sources.length} sources.`);

@@ -36,15 +36,15 @@ App 接口使用 `https://v4api.zaimanhua.com/app/v1`，官网入口使用 `http
 
 | 站点 | Suwatte ID／版本 | Venera key／版本 | Tachimanga ID |
 | --- | --- | --- | --- |
-| CopyManga | `zh.copymanga`／6 | `archettu_copymanga`／1.0.3 | `790675500000000001` |
-| Komiic | `zh.komiic`／4 | `archettu_komiic`／1.1.0 | `790675500000000002` |
-| MangaDex | `en.mangadex`／4 | `archettu_mangadex`／1.0.2 | `790675500000000003` |
-| 漫画柜 | `zh.manhuagui`／2 | `archettu_manhuagui`／1.0.1 | `790675500000000004` |
-| 再漫画 | `zh.zaimanhua`／2 | `archettu_zaimanhua`／1.0.1 | `790675500000000005` |
-| JMComic | 暂未适配 | `archettu_jmcomic`／1.0.0 | 暂未适配 |
-| E-Hentai | 暂未适配 | `archettu_ehentai`／1.0.0 | 暂未适配 |
+| 拷贝漫画 | `zh.copymanga`／7 | `archettu_copymanga`／1.0.4 | `790675500000000001` |
+| Komiic | `zh.komiic`／5 | `archettu_komiic`／1.1.1 | `790675500000000002` |
+| MangaDex | `en.mangadex`／5 | `archettu_mangadex`／1.0.3 | `790675500000000003` |
+| 漫画柜 | `zh.manhuagui`／3 | `archettu_manhuagui`／1.0.2 | `790675500000000004` |
+| 再漫画 | `zh.zaimanhua`／3 | `archettu_zaimanhua`／1.0.2 | `790675500000000005` |
+| 禁漫天堂 | 暂未适配 | `archettu_jmcomic`／1.0.1 | 暂未适配 |
+| E-Hentai | 暂未适配 | `archettu_ehentai`／1.0.1 | 暂未适配 |
 
-Tachimanga 扩展版本为 1.4.5，版本代码为 5，继续使用原仓库证书和原有五个源 ID。MangaDex 保持日语原作筛选，默认不限译文语言。
+Tachimanga 扩展版本为 1.4.6，版本代码为 6。MangaDex 的作品限定为日语原作，默认不限译文语言。
 
 发布前从仓库根目录执行 `npm run check`、`npm test` 和 `npm run build`。构建另行执行 Suwatte 产物回调、Venera QuickJS 加载和 APK 签名／内容核对。
 
@@ -89,3 +89,9 @@ Komiic 的「成人内容」使用官网 `randomComics` 的 `H_MANGA` 模式。�
 JMComic 与 E-Hentai 先接入 Venera。JMComic 使用 App 接口的签名和响应格式，图片按站点分段规则在阅读器中重排。E-Hentai 使用 `gdata` 读取资料，画廊与图片查看页使用 `e-hentai.org`；通过官方论坛登录。协议参考 [JMComic-Crawler-Python](https://github.com/hect0x7/JMComic-Crawler-Python) 和 [E-Hentai API](https://ehwiki.org/wiki/API)。
 
 本机匿名抽查中，JMComic 首页返回 156 项，测试作品读到 62 话和首话 69 个图片地址；E-Hentai 列表返回 25 项，测试画廊读到 4 个图片查看页。没有登录真实账号、申请图片票据或下载漫画图片。Venera 和 Tachimanga 尚未完成实机验证。
+
+## 2026-11-12 复核
+
+拷贝漫画大陆参数服务间歇性超时或断开。「自动（大陆优先）」在这类连接错误时改用同一 API 的海外线路，直至重新打开阅读器或刷新自动 API。手动设置优先，HTTP 及 API 错误直接返回。Suwatte 和 Venera 的本机诊断均读到 153 条目录记录和首章 39 个图片地址。Suwatte 首张图片的 HEAD 返回 HTTP 200。
+
+MangaDex 在原图列表缺失或为空时使用同一响应里的省流图片，仍校验页数。漫画柜在标准章节容器缺失时从详情页章节区读取当前漫画的链接。核对了 [Venera 参考仓库](https://github.com/lldaydayhappy/venera-sources)、[MangaDex 1.9.9](https://github.com/LX7kM9/venera-configs/blob/d1b16445b82ab85ff41f0774ac2f9eb89b6e246f/manga_dex.js) 和 [漫画柜 2.0.0](https://github.com/Souitou-iop/venerax-configs-enhanced/blob/6984ee6772e49b394d420748b43f0640348c9ccb/manhuagui.js)。

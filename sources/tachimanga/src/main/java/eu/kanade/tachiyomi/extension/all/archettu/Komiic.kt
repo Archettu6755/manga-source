@@ -18,7 +18,7 @@ import java.util.Locale
 
 class Komiic : PersonalSource() {
     override val id = 790675500000000002L
-    override val name = "Komiic · 杕"
+    override val name = "Komiic"
     override val lang = "zh"
     override val baseUrl get() = KomiicProtocol.website(prefs.getString("website", null))
     private fun tokenKey(origin: String) = if (origin == KomiicProtocol.DEFAULT_WEBSITE) "token" else "token_komiic_cc"

@@ -10,6 +10,7 @@ import org.json.JSONObject
 import org.junit.Assert.*
 import org.junit.Test
 import java.io.IOException
+import java.net.SocketTimeoutException
 
 class ProtocolTest {
     private val sites = JSONObject(javaClass.getResource("/sites.json")!!.readText())
@@ -50,6 +51,18 @@ class ProtocolTest {
         }
         assertFalse(CopyProtocol.needsRequestId("search/comic", "1"))
     }
+    @Test fun copyAutomaticRouteChangesOnlyAfterParameterConnectionFailures() {
+        val route = CopyProtocol.Route()
+        val path = "comic2/test"
+        val timeout = { throw SourceFailures.connection(SocketTimeoutException(), "marketing.aiacgn.com") }
+        assertThrows(IOException::class.java) { route.forRequest(path, "1", timeout) }
+        assertThrows(IOException::class.java) { route.forRequest(path, "auto") { throw SourceFailures.http(429, "marketing.aiacgn.com") } }
+        assertEquals("1", route.region("auto"))
+        assertEquals(CopyProtocol.RequestRoute("0"), route.forRequest(path, "auto", timeout))
+        assertEquals(CopyProtocol.RequestRoute("0"), route.forRequest(path, "auto") { error("Unexpected parameter request") })
+        route.reset()
+        assertEquals(CopyProtocol.RequestRoute("1", "fixture"), route.forRequest(path, "auto") { "fixture" })
+    }
     @Test fun manhuaguiUsesTheSameCompressedChaptersAndPageOrderAsJavaScript() {
         val data = sites.getJSONObject("manhuagui")
         assertEquals(data.getString("decompressed"), ManhuaguiProtocol.decompress(data.getString("compressed")))
@@ -57,6 +70,8 @@ class ProtocolTest {
         assertEquals(listOf("11", "22", "33"), regular.map { it.id })
         assertEquals(regular, ManhuaguiProtocol.chapters(data.getString("hiddenDetail"), "123", true))
         assertThrows(IOException::class.java) { ManhuaguiProtocol.chapters(data.getString("hiddenDetail"), "123", false) }
+        val plain = """<div class="chapter"><a href="/comic/123/22.html">第2话</a><a href="javascript:;">下一页</a><a href="/comic/123/11.html">第1话</a></div>"""
+        assertEquals(listOf("11", "22"), ManhuaguiProtocol.chapters(plain, "123", false).map { it.id })
         assertEquals(data.getJSONArray("pages").let { array -> (0 until array.length()).map { array.getString(it) } }, ManhuaguiProtocol.pages(data.getString("packed")))
     }
     @Test fun zaimanhuaPreservesChapterGroupsPageOrderAndAccountRestrictions() {

@@ -3,12 +3,42 @@ package archettu.protocol.copymanga
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.IOException
+import java.net.SocketException
+import java.net.SocketTimeoutException
+import java.net.UnknownHostException
 import javax.crypto.Mac
 import javax.crypto.spec.SecretKeySpec
 
 object CopyProtocol {
     const val REQUEST_ID_URL = "https://marketing.aiacgn.com/api/v2/adopr/query3/?format=json&ident=200100001"
+    fun region(setting: String?) = if (setting == "0") "0" else "1"
     fun needsRequestId(path: String, region: String) = region == "1" && Regex("comic2/[^/]+|comic/[^/]+/(chapter2/[^/]+|group/[^/]+/chapters)").matches(path)
+
+    data class RequestRoute(val region: String, val requestId: String? = null)
+
+    class Route {
+        @Volatile private var overseas = false
+
+        fun region(setting: String?) = if (overseas && setting != "1") "0" else CopyProtocol.region(setting)
+
+        fun reset() { overseas = false }
+
+        fun forRequest(path: String, setting: String?, getRequestId: () -> String): RequestRoute {
+            val region = region(setting)
+            if (!needsRequestId(path, region)) return RequestRoute(region)
+            try {
+                return RequestRoute(region, getRequestId())
+            } catch (error: IOException) {
+                if (setting == "1") throw error
+                when (error.cause ?: error) {
+                    is SocketTimeoutException, is SocketException, is UnknownHostException -> overseas = true
+                    else -> throw error
+                }
+                return RequestRoute("0")
+            }
+        }
+    }
+
     fun copyLiteral(text: String): JSONArray {
         val tokens = Regex(""""(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|\b(?:None|True|False)\b""")
         return JSONArray(tokens.replace(text) {

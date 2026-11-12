@@ -72,7 +72,7 @@ declare global {
 }
 export const BASE = "https://archettu6755.github.io/manga-source/venera";
 export function info(id: string, name: string) {
-  return { name: `${name} · Archettu`, key: `archettu_${id}`, version: "1.0.1", minAppVersion: "1.6.3", url: `${BASE}/${id}.js` };
+  return { name, key: `archettu_${id}`, version: "1.0.2", minAppVersion: "1.6.3", url: `${BASE}/${id}.js` };
 }
 export function target(key: string, title = key): Target {
   return { page: "category", attributes: { category: title, param: key } };

@@ -109,9 +109,9 @@ export function createSource(source: SourceStore): SourceConfig {
     return list(data.content.map(item => manga(item)), page, data.content.length < SIZE, Number.isFinite(total) && total >= 0 ? total : undefined, SIZE);
   }
   return {
-    ...info("jmcomic", "JMComic（成人）"), version: "1.0.0",
-    category: category("JMComic", entries),
-    explore: [{ title: "JMComic · 首页推荐", type: "multiPageComicList", load: recommended }],
+    ...info("jmcomic", "禁漫天堂"), version: "1.0.1",
+    category: category("禁漫天堂", entries),
+    explore: [{ title: "禁漫天堂 · 首页推荐", type: "multiPageComicList", load: recommended }],
     categoryComics: { load: (_name, _key, _options, page) => recommended(page) },
     search: { load: (keyword, _options, page) => keyword.trim() ? browse(keyword.trim(), "mr", page) : recommended(page) },
     comic: {

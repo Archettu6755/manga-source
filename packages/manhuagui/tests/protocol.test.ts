@@ -22,6 +22,12 @@ test("Manhuagui unpacks the compressed page data without executing remote JavaSc
   assert.deepEqual(parsePages(fixture.packed), fixture.pages);
   assert.equal(parsePages(fixture.packed, "https://cf.hamreus.com")[0], fixture.pages[0].replace("i.hamreus", "cf.hamreus"));
 });
+test("Manhuagui reads chapter links when the regular chapter containers are absent", () => {
+  const html = '<div class="book-title"><h1>漫画</h1></div><div class="chapter">' +
+    '<a href="/comic/123/22.html">第2话</a><a href="javascript:;">下一页</a>' +
+    '<a href="/comic/456/33.html">其他漫画</a><a href="/comic/123/11.html">第1话</a></div>';
+  assert.deepEqual(parseDetails(html, "123").chapters.map(chapter => chapter.id), ["11", "22"]);
+});
 test("Manhuagui exposes every index family and sends combined filters and ranking periods", async () => {
   const urls: string[] = [];
   const site = new Manhuagui(async url => { urls.push(url); return { status: 200, body: url.includes("/rank/") ? fixture.rank : fixture.list }; });

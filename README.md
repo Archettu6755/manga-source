@@ -1,8 +1,8 @@
 # 自用漫画源
 
-为 Suwatte、Venera 和 Tachimanga 维护独立的 CopyManga、Komiic、MangaDex、漫画柜和再漫画源。漫画内容由设备直接请求原网站。
+为 Suwatte、Venera 和 Tachimanga 维护拷贝漫画、Komiic、MangaDex、漫画柜和再漫画源。漫画内容由设备直接请求原网站。
 
-目前仅在 **Suwatte** 实际使用测试过。Venera 和 Tachimanga 尚未完成实机验证；编译、自动化测试和接口检查通过不代表已在这两款阅读器中验证阅读体验。
+目前仅在 **Suwatte** 实际使用测试过。
 
 ## Suwatte 安装
 
@@ -26,7 +26,7 @@ https://archettu6755.github.io/manga-source/venera/index.json
 
 ## Tachimanga 安装
 
-在 App Store 版 Tachimanga 的「浏览 → 扩展 → ＋ → 扩展仓库」中添加以下地址，再安装「杕的自用漫画源」。一个 APK 提供五个图源，图源语言筛选启用中文和多语言（Multi）。
+在 App Store 版 Tachimanga 的「浏览 → 扩展 → ＋ → 扩展仓库」中添加以下地址，再安装「自用漫画源」。图源语言筛选启用中文和多语言（Multi）。
 
 ```text
 https://archettu6755.github.io/manga-source/tachimanga/index.min.json
@@ -34,21 +34,7 @@ https://archettu6755.github.io/manga-source/tachimanga/index.min.json
 
 [Tachimanga 使用说明](sources/tachimanga/README.md)介绍设置、目录筛选和签名发布流程；[入口清单](sources/tachimanga/ENTRYPOINTS.md)说明原生筛选器中的导航方式。
 
-| 源 | 阅读内容 | 设置 |
-| --- | --- | --- |
-| 拷贝漫画 · Archettu | 中文漫画 | 官网入口、大陆／海外线路、API 域名与刷新、搜索接口、账号登录 |
-| 漫画柜 · Archettu | 简体／繁体中文漫画 | 完整索引、四周期排行、成人提示确认、图片服务器选择 |
-| 再漫画 · Archettu | 简体中文为主的漫画 | 官网推荐、动态网页索引、App 分类、排行、账号登录 |
-| Komiic · Archettu | 繁体中文漫画，含成人入口 | 两站登录、官网续读、卷与章节筛选、图片票据 |
-| MangaDex（日漫）· Archettu | 原始语言为日语的日本漫画，不默认译文语言 | 默认不限；可选简体中文、繁体中文、英文或日语，支持节省图片流量 |
-| JMComic（成人，仅 Venera） | JMComic 漫画 | 首页推荐、搜索、账号登录、章节图片重排 |
-| E-Hentai（成人，仅 Venera） | E-Hentai 画廊 | 更新、标签搜索、论坛网页登录 |
-
-MangaDex 的原始语言筛选同时作用于列表、详情、目录和图片读取。英文翻译的韩漫与欧美原创漫画不会出现在这个源中。外站章节、未发布章节和不可用章节不列入目录。
-
-CopyManga 已补齐大陆详情和章节接口使用的 `request_id` 流程。服务器的 210 限制仍由网站决定，详见 [协议与验证记录](docs/source-protocols.md)。
-
-各源的公开漫画浏览入口与数据来源见 [Suwatte 入口清单](sources/suwatte/ENTRYPOINTS.md)与 [Venera 入口清单](sources/venera/ENTRYPOINTS.md)。保留已发布的入口 ID；增补网站入口时同时检查分类、筛选与分页。
+浏览入口见 [Suwatte 入口清单](sources/suwatte/ENTRYPOINTS.md)和 [Venera 入口清单](sources/venera/ENTRYPOINTS.md)。
 
 ## 大陆入口与可达性诊断
 
@@ -56,7 +42,7 @@ Komiic 的「访问入口」可选 `komiic.com` 或大陆入口 `komiic.cc`。�
 
 Komiic 的「成人内容」入口默认可见。若网站要求年龄确认，请在官网完成。实际读图时按需取得站点签发的图片票据。
 
-CopyManga 已默认使用 `copy4000` 大陆入口和大陆资源线路。其他图源本轮未核实到明确公布的大陆专用入口，保留现有地址；核对范围见 [协议与入口记录](docs/source-protocols.md)。
+拷贝漫画默认使用 `copy4000` 和「自动（大陆优先）」。大陆参数服务连不上时，本次会话使用海外线路。已手动选过线路的用户可在源设置中改为「自动（大陆优先）」。
 
 统一诊断覆盖三个阅读器共有的五个图源，默认使用 Suwatte 模拟器，检查到章节图片地址：
 

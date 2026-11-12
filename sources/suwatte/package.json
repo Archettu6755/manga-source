@@ -16,7 +16,7 @@
     "smoke:browse": "tsx scripts/smoke-browse.ts"
   },
   "suwatte": {
-    "listName": "杕的自用漫画源"
+    "listName": "自用漫画源"
   },
   "dependencies": {
     "@archettu/copymanga": "0.1.0",

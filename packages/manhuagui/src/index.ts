@@ -51,14 +51,16 @@ export function parseDetails(html: string, id: string, adult = false): Details {
   }
   const chaptersDoc = load(chapterHtml), chapters: Details["chapters"] = [];
   const groups = chaptersDoc('[id^="chapter-list-"]');
-  const containers = groups.length ? groups.toArray() : chaptersDoc(".chapter-list").toArray();
+  const sections = groups.length ? groups : chaptersDoc(".chapter-list");
+  const containers = sections.length ? sections : chaptersDoc("div.chapter");
   const seen = new Set<string>();
-  for (const element of containers) {
+  for (const element of containers.toArray()) {
     const container = chaptersDoc(element);
     const group = container.prevAll("h4,h3").first().text().trim() || "连载";
     const lists = container.find("ul").toArray();
-    const links = (lists.length ? lists.reverse().flatMap(ul => chaptersDoc(ul).find("li > a").toArray()) : container.find("li > a").toArray()).reverse();
-    for (const link of links) {
+    const links = !sections.length ? container.find("a[href]").toArray()
+      : lists.length ? lists.reverse().flatMap(ul => chaptersDoc(ul).find("li > a").toArray()) : container.find("li > a").toArray();
+    for (const link of links.reverse()) {
       const a = chaptersDoc(link), match = a.attr("href")?.match(/^\/comic\/(\d+)\/(\d+)\.html$/);
       if (!match || match[1] !== id || seen.has(match[2])) continue;
       seen.add(match[2]);

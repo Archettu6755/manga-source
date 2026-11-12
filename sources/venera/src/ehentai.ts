@@ -100,7 +100,7 @@ export function createSource(): SourceConfig {
     return list([...comics.values()], page, !hasMore);
   }
   return {
-    ...info("ehentai", "E-Hentai（成人）"), version: "1.0.0",
+    ...info("ehentai", "E-Hentai"), version: "1.0.1",
     category: category("E-Hentai", [["latest", "最近更新"]]),
     explore: [{ title: "E-Hentai · 最近更新", type: "multiPageComicList", load: page => browse("", page) }],
     categoryComics: { load: (_name, _key, _options, page) => browse("", page) },

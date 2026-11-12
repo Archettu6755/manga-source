@@ -12,7 +12,7 @@ import java.security.MessageDigest
 
 class Zaimanhua : CatalogSource("zaimanhua") {
     override val id = 790675500000000005L
-    override val name = "再漫画 · 杕"
+    override val name = "再漫画"
     override val lang = "zh"
     override val baseUrl = "https://manhua.zaimanhua.com"
     private val apiUrl = "https://v4api.zaimanhua.com/app/v1"

@@ -67,9 +67,11 @@ export function cover(manga: Manga): string | undefined {
   return file ? `https://uploads.mangadex.org/covers/${encodeURIComponent(manga.id)}/${encodeURIComponent(file)}.256.jpg` : undefined;
 }
 export function pageUrls(reply: { baseUrl: string; chapter: { hash: string; data: string[]; dataSaver: string[] } }, saver: boolean): string[] {
-  const files = saver ? reply.chapter?.dataSaver : reply.chapter?.data;
+  const full = reply.chapter?.data;
+  const useSaver = saver || full === undefined || (Array.isArray(full) && full.length === 0);
+  const files = useSaver ? reply.chapter?.dataSaver : full;
   if (!/^https:\/\/[a-z0-9.-]+(?::\d+)?\/?$/i.test(reply.baseUrl) || !reply.chapter?.hash || !Array.isArray(files) || !files.length || files.some(file => !file)) {
     throw new Error("MangaDex 未返回有效的图片服务器或章节图片。");
   }
-  return files.map(file => `${reply.baseUrl.replace(/\/$/, "")}/${saver ? "data-saver" : "data"}/${encodeURIComponent(reply.chapter.hash)}/${encodeURIComponent(file)}`);
+  return files.map(file => `${reply.baseUrl.replace(/\/$/, "")}/${useSaver ? "data-saver" : "data"}/${encodeURIComponent(reply.chapter.hash)}/${encodeURIComponent(file)}`);
 }

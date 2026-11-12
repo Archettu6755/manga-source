@@ -15,6 +15,11 @@ export function copyWebsite(value: unknown): string {
 export function copyRegion(value: unknown): "0" | "1" {
   return value === "0" ? "0" : "1";
 }
+export const COPY_REGIONS = [
+  { id: "auto", title: "自动（大陆优先）" },
+  { id: "1", title: "大陆线路" },
+  { id: "0", title: "海外线路" },
+];
 export const DEFAULT_API = "https://api.copy202601.com";
 export const APP_VERSION = "3.0.9";
 export const PAGE_SIZE = 30;
@@ -159,6 +164,29 @@ export const REQUEST_ID_URL = "https://marketing.aiacgn.com/api/v2/adopr/query3/
 
 export function needsRequestId(path: string, region: "0" | "1"): boolean {
   return region === "1" && /^(?:comic2\/[^/]+|comic\/[^/]+\/(?:chapter2\/[^/]+|group\/[^/]+\/chapters))$/.test(path);
+}
+
+export class CopyRoute {
+  private overseas = false;
+
+  region(setting: unknown): "0" | "1" {
+    return this.overseas && setting !== "1" ? "0" : copyRegion(setting);
+  }
+
+  reset(): void { this.overseas = false; }
+
+  async forRequest(path: string, setting: unknown, getRequestId: () => Promise<string>): Promise<{ region: "0" | "1"; requestId?: string }> {
+    const region = this.region(setting);
+    if (!needsRequestId(path, region)) return { region };
+    try {
+      return { region, requestId: await getRequestId() };
+    } catch (error) {
+      if (setting === "1" || !(error instanceof SourceError) || error.status !== undefined ||
+          (error.kind !== "timeout" && error.kind !== "connection")) throw error;
+      this.overseas = true;
+      return { region: "0" };
+    }
+  }
 }
 
 export function readRequestId(status: number, body: unknown): string {

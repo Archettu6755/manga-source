@@ -100,12 +100,17 @@ object ManhuaguiProtocol {
             Jsoup.parse(decompress(hidden.`val`()))
         } else document
         val sections = doc.select("[id^=chapter-list-]").ifEmpty { doc.select(".chapter-list") }
+        val containers = sections.ifEmpty { doc.select("div.chapter") }
         val result = mutableListOf<Chapter>()
-        sections.forEach { section ->
+        containers.forEach { section ->
             val group = section.previousElementSiblings().firstOrNull { it.tagName() in listOf("h4", "h3") }?.text() ?: "连载"
             val uls = section.select("ul")
-            val links = (if (uls.isNotEmpty()) uls.reversed().flatMap { it.select("li > a") } else section.select("li > a")).reversed()
-            links.forEach { a ->
+            val links = when {
+                sections.isEmpty() -> section.select("a[href]")
+                uls.isNotEmpty() -> uls.reversed().flatMap { it.select("li > a") }
+                else -> section.select("li > a")
+            }
+            links.reversed().forEach { a ->
                 val match = Regex("/comic/(\\d+)/(\\d+)\\.html").matchEntire(a.attr("href"))
                 if (match != null && match.groupValues[1] == id) result.add(Chapter(match.groupValues[2], a.attr("title").ifEmpty { a.select("span").text().ifEmpty { a.text() } }, group))
             }

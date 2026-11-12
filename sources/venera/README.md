@@ -1,6 +1,6 @@
 # Venera 漫画源
 
-提供 CopyManga、Komiic、MangaDex、漫画柜、再漫画、JMComic 和 E-Hentai。按原版 Venera 1.6.3 的接口开发。源使用 `archettu_` 前缀，可与其他仓库的同站源并存。
+按原版 Venera 1.6.3 的接口开发。
 
 ## 安装
 
@@ -16,11 +16,11 @@ https://archettu6755.github.io/manga-source/venera/index.json
 
 - [拷贝漫画](https://archettu6755.github.io/manga-source/venera/copymanga.js)
 - [Komiic](https://archettu6755.github.io/manga-source/venera/komiic.js)
-- [MangaDex（日漫）](https://archettu6755.github.io/manga-source/venera/mangadex.js)
+- [MangaDex](https://archettu6755.github.io/manga-source/venera/mangadex.js)
 - [漫画柜](https://archettu6755.github.io/manga-source/venera/manhuagui.js)
 - [再漫画](https://archettu6755.github.io/manga-source/venera/zaimanhua.js)
-- [JMComic（成人）](https://archettu6755.github.io/manga-source/venera/jmcomic.js)
-- [E-Hentai（成人）](https://archettu6755.github.io/manga-source/venera/ehentai.js)
+- [禁漫天堂](https://archettu6755.github.io/manga-source/venera/jmcomic.js)
+- [E-Hentai](https://archettu6755.github.io/manga-source/venera/ehentai.js)
 
 浏览入口分布在探索页和分类页中。每个探索页标题包含站点名，避免不同源之间重名。题材、专题、标签、作者、原作和角色使用目录条目及“查看更多”按钮，点击后进入该目录的漫画列表。[入口清单](ENTRYPOINTS.md)记录完整对应关系。
 
@@ -28,7 +28,7 @@ https://archettu6755.github.io/manga-source/venera/index.json
 
 Komiic 在源设置中可选择 `komiic.com` 或大陆入口 `komiic.cc`。默认勾选「同时登录两个官方入口」，一次提交可用同一账号为两站各建一个会话。切换入口后刷新作品和目录。
 
-CopyManga 支持官网入口、大陆／海外资源线路、API 域名与自动地址刷新、网页或 App 搜索及原生账号登录。默认使用 copy4000 大陆入口和大陆线路；使用海外代理时可选择海外线路，并切换 copy20 或 mangacopy 入口。官网入口影响浏览及网页搜索，资源线路影响 API 地域参数和图片请求头。API 留空时从官方网络配置获取地址，手动地址优先；「重新获取」刷新自动地址，保留账号令牌和设备信息。切换线路后重新打开漫画并刷新目录，确保章节图片地址重新获取。
+拷贝漫画默认使用 copy4000、网页搜索和「自动（大陆优先）」。大陆参数服务连不上时，本次会话使用海外线路。手动选择的线路优先。API 域名留空时从官方网络配置获取。切换线路后重新打开漫画并刷新目录。
 
 官网在 2026-10-10 标注 copy4000 为大陆访问入口，官方网络配置当天返回 api.copy202601.com，未提供不同的备用 API。用户网络决定直连效果，入口切换不能保证修复图片 CDN。退出登录只清除令牌。详情和章节受到站点限制时会显示错误；匿名接口可能返回空数据，需要在设备上核对官网与账号权限。
 
