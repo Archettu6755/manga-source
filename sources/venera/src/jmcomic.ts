@@ -1,6 +1,6 @@
 import CryptoJS from "crypto-js";
 import { httpError, SourceError } from "@archettu/manga-core";
-import { category, header, info, json, list, pageNumber, params, Transport, type ComicItem, type ComicList, type SourceConfig, type SourceStore } from "./runtime";
+import { category, comicLink, header, info, json, list, pageNumber, params, Transport, type ComicItem, type ComicList, type SourceConfig, type SourceStore } from "./runtime";
 
 const API = "https://www.cdnhjk.net";
 const WEBSITE = "https://18comic.vip";
@@ -9,9 +9,12 @@ const APP_VERSION = "2.1.12";
 const APP_KEY = "185Hcomic3PAPP7R";
 const SIZE = 80;
 const entries: [string, string][] = [["recommended", "首页推荐"]];
+const ranks = ["mv-总排行", "mv_m-月排行", "mv_w-周排行", "mv_t-日排行"];
+const orders = ["mr-最新", ...ranks, "mp-图片最多", "tf-点赞最多"];
 const imgHeaders = { Referer: `${WEBSITE}/` };
 type Album = { id?: string | number; name?: string; author?: string | string[]; description?: string; tags?: string[];
   series?: { id: string | number; name?: string; sort?: number | string }[] };
+type AlbumList = { content: Album[]; total?: string | number; redirect_aid?: string | number };
 
 function jmId(value: unknown): string {
   const id = String(value ?? "").replace(/^jm/i, "");
@@ -97,9 +100,9 @@ export function createSource(source: SourceStore): SourceConfig {
     }
     return list([...comics.values()], page, true);
   }
-  async function browse(keyword: string, order: string, page: number): Promise<ComicList> {
+  async function browse(path: "search" | "categories/filter", fields: Record<string, string | number>, order: string, page: number): Promise<ComicList> {
     pageNumber(page);
-    const data = await api<{ content: Album[]; total?: string | number; redirect_aid?: string | number }>("search", { main_tag: 0, search_query: keyword, page, o: order, t: "a" });
+    const data = await api<AlbumList>(path, { ...fields, page, o: order });
     if (data.redirect_aid) {
       const id = jmId(data.redirect_aid);
       return list(page === 1 ? [manga(await album(id), id)] : [], page, true, 1, SIZE);
@@ -109,11 +112,19 @@ export function createSource(source: SourceStore): SourceConfig {
     return list(data.content.map(item => manga(item)), page, data.content.length < SIZE, Number.isFinite(total) && total >= 0 ? total : undefined, SIZE);
   }
   return {
-    ...info("jmcomic", "禁漫天堂"), version: "1.0.1",
-    category: category("禁漫天堂", entries),
+    ...info("jmcomic", "禁漫天堂", "1.4.4"),
+    category: { ...category("禁漫天堂", entries), enableRankingPage: true },
     explore: [{ title: "禁漫天堂 · 首页推荐", type: "multiPageComicList", load: recommended }],
-    categoryComics: { load: (_name, _key, _options, page) => recommended(page) },
-    search: { load: (keyword, _options, page) => keyword.trim() ? browse(keyword.trim(), "mr", page) : recommended(page) },
+    categoryComics: {
+      load: (_name, _key, _options, page) => recommended(page),
+      ranking: { options: ranks, load: (order, page) => browse("categories/filter", { c: 0 }, ranks.some(rank => rank.startsWith(`${order}-`)) ? order : "mv", page) },
+    },
+    search: {
+      optionList: [{ label: "排序", options: orders }],
+      load: (keyword, [order], page) => keyword.trim()
+        ? browse("search", { main_tag: 0, search_query: keyword.trim(), t: "a" }, orders.some(option => option.startsWith(`${order}-`)) ? order : "mr", page)
+        : recommended(page),
+    },
     comic: {
       loadInfo: async raw => {
         const id = jmId(raw);
@@ -146,6 +157,7 @@ export function createSource(source: SourceStore): SourceConfig {
         return { headers: imgHeaders, ...(count ? { modifyImage: restoreStrips(count) } : {}) };
       },
       onThumbnailLoad: () => ({ headers: imgHeaders }),
+      link: comicLink([WEBSITE.slice(8)], path => /^\/album\/([1-9]\d{0,11})(?:[/?]|$)/.exec(path)?.[1]),
     },
     account: {
       login: async (username, password) => { await api("login", { username, password }, true); return true; },

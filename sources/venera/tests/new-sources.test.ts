@@ -21,15 +21,20 @@ test("JMComic uses the signed API, stores only its session, and restores uneven 
       return jmResponse(call, { uid: "1", s: "fixture-session" });
     }
     assert.equal(call.headers.Cookie, "AVS=fixture-session");
-    if (call.url.includes("/search?")) return jmResponse(call, { content: [{ id: 240000, name: "Fixture" }], total: "81" });
+    if (/\/(?:search|categories\/filter)\?/.test(call.url)) return jmResponse(call, { content: [{ id: 240000, name: "Fixture" }], total: "81" });
     if (call.url.includes("/album?")) return jmResponse(call, { id: 240000, name: "Fixture", series: [{ id: 240001, sort: 2 }, { id: 240000, sort: 1 }] });
     return jmResponse(call, { id: 240000, images: ["00001.webp", "00002.gif"] });
   });
   await source.account!.login!("fixture", "fixture-password");
   assert.deepEqual([...data], [["session", "fixture-session"]]);
-  const search = await source.search.load("测试 & 漫画", [], 2);
+  const search = await source.search.load("测试 & 漫画", ["mv_w"], 2);
   assert.equal(search.maxPage, 2);
   assert.equal(new URL(calls.at(-1)!.url).searchParams.get("search_query"), "测试 & 漫画");
+  assert.equal(new URL(calls.at(-1)!.url).searchParams.get("o"), "mv_w");
+  assert.equal((await source.categoryComics.ranking!.load("mv_m", 2)).maxPage, 2);
+  const rank = new URL(calls.at(-1)!.url);
+  assert.equal(rank.pathname, "/categories/filter");
+  assert.deepEqual(Object.fromEntries(rank.searchParams), { c: "0", page: "2", o: "mv_m" });
   const details = await source.comic.loadInfo("240000");
   assert.deepEqual(Object.keys(details.chapters), ["ep:240000", "ep:240001"]);
   const { images } = await source.comic.loadEp("240000", "ep:240000");
@@ -74,6 +79,27 @@ test("E-Hentai follows the site's cursor and gallery page numbers, resolving ima
   assert.equal(image.url, "https://fixture.hath.network/page.jpg");
   assert.equal(image.headers.Cookie, undefined);
   await assert.rejects(() => Promise.resolve(source.comic.onImageLoad!("https://evil.invalid/s/0000000001/23-1", "23-0123456789", "ep:gallery")), /当前画廊/);
+});
+
+test("E-Hentai sends category, language and minimum rating filters without reusing another search's cursor", async () => {
+  const { source, calls } = fixture("ehentai", call => {
+    const url = new URL(call.url);
+    return { body: '<table class="itg"><tr><td><a href="/g/23/0123456789/"><div class="glink">Fixture</div></a></td></tr></table>' +
+      (!url.searchParams.has("next") ? `<a id="unext" href="/?${url.searchParams.toString().replace(/&/g, "&amp;")}&amp;next=23"></a>` : "") };
+  });
+  const options = ['["2","2"]', "4", "japanese"];
+  assert.equal((await source.search.load("test", options, 1)).maxPage, 2);
+  const query = new URL(calls.at(-1)!.url).searchParams;
+  assert.equal(query.get("f_cats"), "1019");
+  assert.equal(query.get("f_srdd"), "4");
+  assert.equal(query.get("f_search"), "test language:japanese");
+  await assert.rejects(() => source.search.load("test", ["[\"1\"]"], 2), /第一页/);
+  await source.search.load("test", options, 2);
+  assert.equal(new URL(calls.at(-1)!.url).searchParams.get("next"), "23");
+  await source.search.load("test", ["2", "4", "japanese"], 1);
+  assert.equal(new URL(calls.at(-1)!.url).searchParams.get("f_cats"), "1019");
+  await source.explore[1].load(1);
+  assert.equal(new URL(calls.at(-1)!.url).pathname, "/popular");
 });
 
 test("New Venera sources stop on restrictions and E-Hentai only transfers its own forum session", async () => {

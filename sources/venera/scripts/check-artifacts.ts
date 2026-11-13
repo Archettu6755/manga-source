@@ -73,6 +73,11 @@ async function main() {
           const added = ['manhuagui', 'zaimanhua'].includes(${JSON.stringify(id)});
           const comicId = id === 'ehentai' ? '23-0123456789' : id === 'jmcomic' ? '500001' : added ? '123' : 'fixture';
           const chapterId = id === 'ehentai' ? 'ep:gallery' : id === 'jmcomic' ? 'ep:500001' : added ? '22' : 'chapter';
+          const links = { copymanga: ['https://www.copy4000.com/comic/fixture', 'fixture'], komiic: ['https://komiic.com/comic/fixture', 'fixture'],
+            mangadex: ['https://mangadex.org/title/01234567-89ab-cdef-0123-456789abcdef', '01234567-89ab-cdef-0123-456789abcdef'],
+            manhuagui: ['https://www.manhuagui.com/comic/123/', '123'], zaimanhua: ['https://m.zaimanhua.com/pages/comic/detail?id=123', '123'],
+            jmcomic: ['https://18comic.vip/album/500001', '500001'], ehentai: ['https://e-hentai.org/g/23/0123456789/', '23-0123456789'] };
+          if (temp.comic.link.linkToId(links[id][0]) !== links[id][1]) throw new Error('Invalid comic link');
           const pages = await temp.comic.loadEp(comicId, chapterId);
           if (pages.images.length !== 2) throw new Error('Missing chapter pages');
           if (id === 'komiic' && (await temp.comic.onImageLoad(pages.images[0], comicId, chapterId)).headers['X-Image-Ticket'] !== 'fixture-ticket') throw new Error('Missing Komiic image ticket');

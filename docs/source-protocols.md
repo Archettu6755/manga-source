@@ -36,13 +36,13 @@ App 接口使用 `https://v4api.zaimanhua.com/app/v1`，官网入口使用 `http
 
 | 站点 | Suwatte ID／版本 | Venera key／版本 | Tachimanga ID |
 | --- | --- | --- | --- |
-| 拷贝漫画 | `zh.copymanga`／7 | `archettu_copymanga`／1.0.4 | `790675500000000001` |
-| Komiic | `zh.komiic`／5 | `archettu_komiic`／1.1.1 | `790675500000000002` |
-| MangaDex | `en.mangadex`／5 | `archettu_mangadex`／1.0.3 | `790675500000000003` |
-| 漫画柜 | `zh.manhuagui`／3 | `archettu_manhuagui`／1.0.2 | `790675500000000004` |
-| 再漫画 | `zh.zaimanhua`／3 | `archettu_zaimanhua`／1.0.2 | `790675500000000005` |
-| 禁漫天堂 | 暂未适配 | `archettu_jmcomic`／1.0.1 | 暂未适配 |
-| E-Hentai | 暂未适配 | `archettu_ehentai`／1.0.1 | 暂未适配 |
+| 拷贝漫画 | `zh.copymanga`／7 | `archettu_copymanga`／2.3.1 | `790675500000000001` |
+| Komiic | `zh.komiic`／5 | `archettu_komiic`／1.8.3 | `790675500000000002` |
+| MangaDex | `en.mangadex`／5 | `archettu_mangadex`／1.9.9 | `790675500000000003` |
+| 漫画柜 | `zh.manhuagui`／3 | `archettu_manhuagui`／2.0.0 | `790675500000000004` |
+| 再漫画 | `zh.zaimanhua`／3 | `archettu_zaimanhua`／1.2.6 | `790675500000000005` |
+| 禁漫天堂 | 暂未适配 | `archettu_jmcomic`／1.4.4 | 暂未适配 |
+| E-Hentai | 暂未适配 | `archettu_ehentai`／1.2.5 | 暂未适配 |
 
 Tachimanga 扩展版本为 1.4.6，版本代码为 6。MangaDex 的作品限定为日语原作，默认不限译文语言。
 
@@ -95,3 +95,7 @@ JMComic 与 E-Hentai 先接入 Venera。JMComic 使用 App 接口的签名和响
 拷贝漫画大陆参数服务间歇性超时或断开。「自动（大陆优先）」在这类连接错误时改用同一 API 的海外线路，直至重新打开阅读器或刷新自动 API。手动设置优先，HTTP 及 API 错误直接返回。Suwatte 和 Venera 的本机诊断均读到 153 条目录记录和首章 39 个图片地址。Suwatte 首张图片的 HEAD 返回 HTTP 200。
 
 MangaDex 在原图列表缺失或为空时使用同一响应里的省流图片，仍校验页数。漫画柜在标准章节容器缺失时从详情页章节区读取当前漫画的链接。核对了 [Venera 参考仓库](https://github.com/lldaydayhappy/venera-sources)、[MangaDex 1.9.9](https://github.com/LX7kM9/venera-configs/blob/d1b16445b82ab85ff41f0774ac2f9eb89b6e246f/manga_dex.js) 和 [漫画柜 2.0.0](https://github.com/Souitou-iop/venerax-configs-enhanced/blob/6984ee6772e49b394d420748b43f0640348c9ccb/manhuagui.js)。
+
+## 2026-11-13 Venera 更新
+
+七个 Venera 源均可识别站点分享链接，继续使用原有源键和章节键。参考 [LX7kM9](https://github.com/LX7kM9/venera-configs/tree/8338b789096bf9132c9f0f6d899dd4f14efe551d)、[Souitou-iop](https://github.com/Souitou-iop/venerax-configs-enhanced/tree/9623dfe4180e75a3e1ea650f3d81d37f4aaaa822) 和 [senran-N](https://github.com/senran-N/venera-configs/blob/11808a26950c17ebf0f293a72fbe47b9a91302e1/index.json)。

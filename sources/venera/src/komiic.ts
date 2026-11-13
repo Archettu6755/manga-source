@@ -2,7 +2,7 @@ import { ADULT_TYPE, COMIC_FIELDS, HISTORY_QUERY, ImageTickets, PAGE_SIZE, TICKE
   historyComics, historyPagination, imageKid, imagePages, komiicWebsite, komiicUrl, matureComic, numericSerial, otherWebsite,
   readData, readingPosition, requireComic, sessionCookies, type Comic, type ComicChapter, type ComicHistory } from "@archettu/komiic";
 import { httpError } from "@archettu/manga-core";
-import { category, header, info, json, list, pageNumber, part, Transport,
+import { category, comicLink, header, info, json, list, pageNumber, part, Transport,
   type SourceStore, type SourceConfig, type ComicItem, type ComicList, type Part, type Option, type ImageLoadingConfig } from "./runtime";
 
 const FEEDS: [string, string][] = [["latest", "最近更新"], ["popular", "热门漫画"], ["all", "所有漫画"],
@@ -192,7 +192,7 @@ export function createSource(source: SourceStore): SourceConfig {
     saveSession(origin, cookies, token);
   }
   return {
-    ...info("komiic", "Komiic"), version: "1.1.1",
+    ...info("komiic", "Komiic", "1.8.3"),
     category: category("Komiic", FEEDS.filter(([key]) => !DIRECTORIES.includes(key))),
     explore: FEEDS.map(([key, title]) => ({ title: `Komiic · ${title}`, type: DIRECTORIES.includes(key) ? "multiPartPage" : "multiPageComicList",
       load: async page => {
@@ -253,6 +253,7 @@ export function createSource(source: SourceStore): SourceConfig {
         return { headers: { ...headers(origin), Referer: referer } };
       },
       onThumbnailLoad: () => ({ headers: { Referer: `${website()}/` } }),
+      link: comicLink(WEBSITES.map(site => site.id.slice(8)), path => /^\/comic\/([\w-]+)(?:[/?]|$)/.exec(path)?.[1]),
     },
     account: {
       login: async (email, password) => {

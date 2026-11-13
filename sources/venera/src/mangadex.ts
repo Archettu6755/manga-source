@@ -1,7 +1,7 @@
 import { API, WEBSITE, CHAPTER_LANGUAGES, CURATED_LISTS, cover, languageParams, localized, pageUrls, query, readCollection, readable, readReply, requireJapanese,
   type Collection, type Language, type Manga, type MangaChapter, type MangaTag, type Relationship } from "@archettu/mangadex";
 import tagSnapshot from "./mangadex-tags.json";
-import { category, choice, choiceId, info, json, list, pageNumber, part, Transport,
+import { category, choice, choiceId, comicLink, info, json, list, pageNumber, part, Transport,
   type SourceStore, type SourceConfig, type ComicItem, type ComicList, type Option } from "./runtime";
 
 const INCLUDES: [string, string][] = [["includes[]", "cover_art"], ["includes[]", "author"], ["includes[]", "artist"]];
@@ -145,7 +145,7 @@ export function createSource(source: SourceStore): SourceConfig {
     }
   }
   return {
-    ...info("mangadex", "MangaDex"), version: "1.0.3", category: category("MangaDex", FEEDS.filter(([key]) => key !== "tags")),
+    ...info("mangadex", "MangaDex", "1.9.9"), category: category("MangaDex", FEEDS.filter(([key]) => key !== "tags")),
     explore: FEEDS.map(([key, title]) => ({ title: `MangaDex · ${title}`, type: key === "tags" ? "multiPartPage" : "multiPageComicList",
       load: async page => key === "tags" ? (await tags()).map(tag => part(`tag:${tag.id}`, `${tag.attributes.group} · ${localized(tag.attributes.name, language())}`)) : browse(key, [], page) })),
     categoryComics: { load: (name, key, values, page) => browse(key ?? name, values, page), optionLoader: async (_name, key) => {
@@ -176,6 +176,9 @@ export function createSource(source: SourceStore): SourceConfig {
         if (images.length !== chapter.attributes.pages) throw new Error("MangaDex 图片数量与章节信息不一致。");
         return { images };
       },
+      link: comicLink(["mangadex.org", "www.mangadex.org"], path => /^\/title\/([\da-f]{8}(?:-[\da-f]{4}){3}-[\da-f]{12})(?:[/?]|$)/i.exec(path)?.[1]),
+      onImageLoad: () => ({ headers: { Referer: `${WEBSITE}/` } }),
+      onThumbnailLoad: () => ({ headers: { Referer: `${WEBSITE}/` } }),
     },
     settings: {
       chapterLanguage: { title: "章节语言", type: "select", default: "all", options: CHAPTER_LANGUAGES.map(option => ({ value: option.id, text: option.title })) },

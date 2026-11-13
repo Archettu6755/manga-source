@@ -6,7 +6,7 @@ import {
   CHAPTER_PAGE_SIZE, PAGE_SIZE, RANK_PERIODS, REGIONS, STATUSES,
   type DeviceInfo, type Comic, type Details, type ApiList, type ApiChapter, type ApiPages, type BrowseTheme,
 } from "@archettu/copymanga";
-import { category, choice, choiceId, info, json, list, pageNumber, params, part, target, Transport,
+import { category, choice, choiceId, comicLink, info, json, list, pageNumber, params, part, target, Transport,
   type SourceStore, type SourceConfig, type ComicItem, type ComicList, type Part, type Option } from "./runtime";
 
 const FEEDS: [string, string][] = [["home", "首页推荐"], ["all", "发现／全部漫画"], ["topics", "专题"],
@@ -178,7 +178,7 @@ export function createSource(source: SourceStore): SourceConfig {
     return value;
   }
   return {
-    ...info("copymanga", "拷贝漫画"), version: "1.0.4",
+    ...info("copymanga", "拷贝漫画", "2.3.1"),
     category: { ...category("拷贝漫画", FEEDS.filter(([key]) => !["home", "themes", "topics", "ranks"].includes(key))), enableRankingPage: true },
     explore: FEEDS.map(([key, title]) => ({ title: `拷贝漫画 · ${title}`, type: ["home", "themes", "topics", "ranks"].includes(key) ? "multiPartPage" : "multiPageComicList",
       load: async page => {
@@ -233,6 +233,7 @@ export function createSource(source: SourceStore): SourceConfig {
         return { images: orderedPages(await api.get<ApiPages>(`comic/${encodeURIComponent(id)}/chapter2/${encodeURIComponent(chapter)}`)).map(page => page.url) };
       },
       onImageLoad: () => ({ headers: imageHeaders(new Date(), api.region()) }), onThumbnailLoad: () => ({ headers: imageHeaders(new Date(), api.region()) }),
+      link: comicLink(COPY_WEBSITES.map(entry => entry.url.slice(8)), path => /^\/(?:h5\/)?(?:details\/)?comic\/([\w-]+)(?:[/?]|$)/.exec(path)?.[1]),
     },
     account: { login: (username, password) => api.login(username, password), logout: () => { source.deleteData("token"); lastDetails = undefined; }, registerWebsite: `${WEBSITE}/reg` },
     settings: {

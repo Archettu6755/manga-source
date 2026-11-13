@@ -1,6 +1,6 @@
 # Venera 漫画浏览入口
 
-核对日期：2026-10-17。保留 [Suwatte 入口清单](../suwatte/ENTRYPOINTS.md)中的全部公开漫画浏览入口。各站账号收藏、阅读记录、评论、投稿和网站设置尚未适配；本地书架、历史和下载由 Venera 管理。
+核对日期为 2026-11-13。公开浏览入口沿用 [Suwatte 入口清单](../suwatte/ENTRYPOINTS.md)。Venera 另提供禁漫天堂和 E-Hentai。按自用需求，省略多账号和站点收藏。
 
 ## CopyManga
 
@@ -44,7 +44,10 @@
 | 图源 | 入口 ID／名称 | 数据来源 |
 | --- | --- | --- |
 | 禁漫天堂 | `recommended`／首页推荐 | `/promote`，搜索使用 `/search`，详情和目录使用 `/album` |
+| 禁漫天堂 | 总榜、月榜、周榜、日榜 | `/categories/filter`，按榜单排序分页 |
 | E-Hentai | `latest`／最近更新 | `e-hentai.org` 列表与搜索游标，详情使用 `gdata`，画廊保留网页页码 |
+| E-Hentai | `popular`／热门 | `e-hentai.org/popular` |
+| E-Hentai | `type:<编号>`、`language:<语言>` | 官网画廊分类与语言，搜索支持分类、语言和最低评分 |
 
 ## MangaDex
 
@@ -76,7 +79,7 @@
 | ongoing | 连载漫画 | `/list/lianzai/update_p<page>.html` |
 | completed | 完结漫画 | `/list/wanjie/update_p<page>.html` |
 | categories | 漫画索引 | 题材、地区、读者群、年份、首字母、状态；进入 `filter:<字段>:<值>` |
-| ranks | 排行榜 | `/rank/` 的日、周、月、总榜，进入 `rank:<周期>` |
+| ranks | 排行榜 | `/rank/` 的日、周、月、总榜，进入 `rank:<周期>`，也可在原生排行榜打开 |
 
 搜索支持更新、人气、上架、评分排序。章节分组和网站返回的图片顺序均保留。压缩章节列表和图片数据按格式解析，不执行网站 JavaScript。
 
@@ -94,4 +97,4 @@
 | web-categories | 官网分类／字母索引 | 官网 `/api/v1/comic1/filter_type`；进入 `web-filter:<字段>:<值>`，使用官网分类接口 |
 | ranks | 排行榜 | 四个周期 × 人气／吐槽／订阅，进入 `rank:<周期>:<指标>` |
 
-App 分类编号与官网编号不同，分别保留。空推荐栏目和分类入口不因没有结果而删除。账号收藏、评论和签到尚未适配。
+App 分类编号与官网编号不同。Venera 的章节评论读取 App 的 `viewpoint/list`，登录后可以用 `viewpoint/add` 发表。

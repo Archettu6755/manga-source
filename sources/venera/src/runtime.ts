@@ -18,7 +18,8 @@ export interface ImageLoadingConfig { headers: Record<string, string>; url?: str
 export interface Cookie { name: string; value: string; domain?: string; path?: string; secure?: boolean; httpOnly?: boolean; expires?: number }
 export interface Target { page: "category"; attributes: { category: string; param: string } }
 export interface Part { title: string; comics: ComicItem[]; viewMore?: Target }
-export interface Option { label: string; options: string[]; type?: "select" | "multi-select" | "dropdown" }
+export interface Option { label: string; options: string[]; type?: "select" | "multi-select" | "dropdown"; default?: string[] }
+export interface ChapterComment { id: string; userName: string; content: string }
 export interface Explore {
   title: string;
   type: "multiPageComicList" | "multiPartPage";
@@ -55,6 +56,9 @@ export interface SourceConfig {
     onImageLoad?: (url: string, id: string, chapter: string) => ImageLoadingConfig | Promise<ImageLoadingConfig>;
     onThumbnailLoad?: (url: string) => { headers: Record<string, string> };
     onClickTag?: (namespace: string, tag: string) => Target | null;
+    link?: { domains: string[]; linkToId(url: string): string | null };
+    loadChapterComments?: (id: string, chapter: string, page: number, replyTo: string | null) => Promise<{ comments: ChapterComment[]; maxPage: number }>;
+    sendChapterComment?: (id: string, chapter: string, content: string, replyTo: string | null) => Promise<void>;
   };
   settings?: Record<string, Setting>;
   account?: { login?(username: string, password: string): Promise<boolean>; logout(): void; registerWebsite: string | null;
@@ -71,8 +75,14 @@ declare global {
   const UI: { showMessage(message: string): void };
 }
 export const BASE = "https://archettu6755.github.io/manga-source/venera";
-export function info(id: string, name: string) {
-  return { name, key: `archettu_${id}`, version: "1.0.2", minAppVersion: "1.6.3", url: `${BASE}/${id}.js` };
+export function info(id: string, name: string, version: string) {
+  return { name, key: `archettu_${id}`, version, minAppVersion: "1.6.3", url: `${BASE}/${id}.js` };
+}
+export function comicLink(domains: string[], parsePath: (path: string) => string | undefined): NonNullable<SourceConfig["comic"]["link"]> {
+  return { domains, linkToId(url) {
+    const match = /^https?:\/\/([a-z\d.-]+)(\/[^\s#]*)?(?:#[^\s]*)?$/i.exec(url);
+    return match && domains.includes(match[1].toLowerCase()) ? parsePath(match[2] ?? "/") ?? null : null;
+  } };
 }
 export function target(key: string, title = key): Target {
   return { page: "category", attributes: { category: title, param: key } };

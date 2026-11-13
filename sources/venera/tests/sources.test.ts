@@ -10,8 +10,8 @@ const fixture: typeof baseFixture = (id, handler, settings, initial) => baseFixt
 
 test("scripts follow the original loader, register unique keys and preserve every explore entry", () => {
   const expected = [
-    ["copymanga", "拷贝漫画", 10, "1.0.4"], ["komiic", "Komiic", 17, "1.1.1"], ["mangadex", "MangaDex", 10, "1.0.3"],
-    ["manhuagui", "漫画柜", 10, "1.0.2"], ["zaimanhua", "再漫画", 9, "1.0.2"], ["jmcomic", "禁漫天堂", 1, "1.0.1"], ["ehentai", "E-Hentai", 1, "1.0.1"],
+    ["copymanga", "拷贝漫画", 10, "2.3.1"], ["komiic", "Komiic", 17, "1.8.3"], ["mangadex", "MangaDex", 10, "1.9.9"],
+    ["manhuagui", "漫画柜", 10, "2.0.0"], ["zaimanhua", "再漫画", 9, "1.2.6"], ["jmcomic", "禁漫天堂", 1, "1.4.4"], ["ehentai", "E-Hentai", 2, "1.2.5"],
   ] as const;
   for (const [id, name, count, version] of expected) {
     assert.match(scriptFor(id).split("\n")[0], /^class [a-z]+ extends ComicSource \{$/i);
@@ -25,6 +25,27 @@ test("scripts follow the original loader, register unique keys and preserve ever
     assert.equal(typeof context.Buffer, "undefined");
     assert.equal(typeof context.document, "undefined");
     assert.equal(typeof context.URL, "undefined");
+  }
+});
+test("Venera opens upstream site links with the installed source's existing comic IDs", () => {
+  const links = [
+    ["copymanga", "https://www.copy4000.com/h5/details/comic/fixture-name?source=share", "fixture-name"],
+    ["komiic", "https://komiic.cc/comic/42/chapter/52/images/all", "42"],
+    ["mangadex", "https://mangadex.org/title/01234567-89ab-cdef-0123-456789abcdef/fixture", "01234567-89ab-cdef-0123-456789abcdef"],
+    ["manhuagui", "https://www.manhuagui.com/comic/123/22.html", "123"],
+    ["zaimanhua", "https://m.zaimanhua.com/pages/comic/detail?id=123&from=share", "123"],
+    ["jmcomic", "https://18comic.vip/album/240000", "240000"],
+    ["ehentai", "https://e-hentai.org/g/23/0123456789/?p=1", "23-0123456789"],
+  ];
+  for (const [id, url, comic] of links) {
+    const { source, calls } = fixture(id);
+    const handler = source.comic.link!;
+    const parsed = new URL(url);
+    assert.ok(handler.domains.includes(parsed.host));
+    assert.equal(handler.linkToId(url), comic);
+    assert.equal(handler.linkToId(url.replace(parsed.host, `${parsed.host}.example`)), null);
+    assert.equal(handler.linkToId(`${parsed.origin}/elsewhere?forward=${parsed.pathname}`), null);
+    assert.equal(calls.length, 0);
   }
 });
 test("CopyManga auto uses the selected API host after a parameter timeout and preserves access errors", async () => {

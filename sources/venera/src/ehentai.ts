@@ -1,6 +1,6 @@
 import { load } from "cheerio/slim";
 import { httpError, SourceError } from "@archettu/manga-core";
-import { category, info, json, list, pageNumber, params, Transport, type ComicItem, type ComicList, type SourceConfig } from "./runtime";
+import { category, comicLink, info, json, list, pageNumber, params, Transport, type ComicItem, type ComicList, type SourceConfig } from "./runtime";
 
 const WEBSITE = "https://e-hentai.org";
 const FORUM = "https://forums.e-hentai.org";
@@ -8,6 +8,11 @@ const API = "https://api.e-hentai.org/api.php";
 const accountCookies = ["ipb_member_id", "ipb_pass_hash"];
 const webHeaders = { Referer: `${WEBSITE}/`, Accept: "text/html" };
 const cdn = /^https:\/\/(?:[a-z0-9-]+\.)*(?:hath\.network|ehgt\.org|e-hentai\.org)(?::\d{1,5})?\/[^\s#]+$/i;
+const types = ["Misc", "Doujinshi", "Manga", "Artist CG", "Game CG", "Image Set", "Cosplay", "Asian Porn", "Non-H", "Western"];
+const languages = [["chinese", "中文"], ["english", "英文"], ["japanese", "日文"]];
+const feeds: [string, string][] = [["latest", "最近更新"], ["popular", "热门"],
+  ...types.map((title, index): [string, string] => [`type:${index}`, title]),
+  ...languages.map(([id, title]): [string, string] => [`language:${id}`, title])];
 type Gallery = { gid: number | string; token: string; title: string; title_jpn?: string; thumb?: string; uploader?: string;
   category?: string; tags?: string[]; filecount: string | number; error?: string };
 
@@ -20,9 +25,29 @@ function galleryHref(id: string): string {
   const { gid, token } = galleryId(id);
   return `${WEBSITE}/g/${gid}/${token}/`;
 }
-function galleryFromUrl(url: string): string | undefined {
-  const match = /^(?:https:\/\/e-hentai\.org)?\/g\/([1-9]\d{0,11})\/([a-f\d]{10})\/?(?:[?#]|$)/i.exec(url);
+const galleryPath = /^\/g\/([1-9]\d{0,11})\/([a-f\d]{10})\/?(?:[?#]|$)/i;
+function galleryFromPath(path: string): string | undefined {
+  const match = galleryPath.exec(path);
   return match ? `${match[1]}-${match[2].toLowerCase()}` : undefined;
+}
+const publicLink = comicLink([WEBSITE.slice(8)], galleryFromPath);
+function galleryFromUrl(url: string): string | undefined {
+  return url.startsWith("/") ? galleryFromPath(url) : publicLink.linkToId(url) ?? undefined;
+}
+function searchParams(keyword: string, [selection, rating, language]: string[]): Record<string, string | number> {
+  const values: Record<string, string | number> = {};
+  if (selection) {
+    let value: unknown;
+    try { value = JSON.parse(selection); }
+    catch { throw new Error("E-Hentai 分类选项无效。"); }
+    const selected = Array.isArray(value) ? value : [value];
+    if (selected.some(value => !/^[0-9]$/.test(String(value)))) throw new Error("E-Hentai 分类选项无效。");
+    if (selected.length) values.f_cats = 1023 ^ selected.reduce((mask, value) => mask | (1 << Number(value)), 0);
+  }
+  if (rating && /^[2-5]$/.test(rating)) Object.assign(values, { advsearch: 1, f_sr: "on", f_srdd: rating });
+  if (languages.some(([id]) => id === language) && !/\blanguage:/i.test(keyword)) keyword = `${keyword} language:${language}`.trim();
+  if (keyword) values.f_search = keyword;
+  return values;
 }
 function pageNumberFromUrl(url: string, gid: string): number | undefined {
   const match = /^(?:https:\/\/e-hentai\.org)?\/s\/[a-f\d]{10}\/([1-9]\d{0,11})-([1-9]\d{0,4})\/?$/i.exec(url);
@@ -70,15 +95,13 @@ export function createSource(): SourceConfig {
   function item(id: string, record: Gallery): ComicItem {
     return { id, title: record.title_jpn || record.title, cover: safeCdn(record.thumb), subtitle: record.uploader, tags: record.tags };
   }
-  async function browse(keyword: string, page: number): Promise<ComicList> {
+  async function browse(first: string, page: number): Promise<ComicList> {
     pageNumber(page);
-    const exact = galleryFromUrl(keyword);
-    if (exact) return list(page === 1 ? [item(exact, await gallery(exact))] : [], page, true);
     if (page === 1) {
       if (cursors.size >= 12) cursors.delete(cursors.keys().next().value!);
-      cursors.set(keyword, new Map([[1, keyword ? `${WEBSITE}/?${params({ f_search: keyword })}` : `${WEBSITE}/`]]));
+      cursors.set(first, new Map([[1, first]]));
     }
-    const pages = cursors.get(keyword);
+    const pages = cursors.get(first);
     const url = pages?.get(page);
     if (!pages || !url) throw new Error("E-Hentai 使用游标翻页，请从第一页开始浏览。");
     const $ = await html(url);
@@ -95,16 +118,36 @@ export function createSource(): SourceConfig {
     });
     if (!comics.size && !/no hits found/i.test($("body").text())) throw new Error("E-Hentai 未返回可识别的作品列表，请在官网核对访问状态。");
     const next = viewerUrl($("#unext").attr("href") ?? "");
-    const hasMore = next.startsWith(`${WEBSITE}/?`) && /[?&]next=[1-9]\d*/.test(next) && next !== url;
+    const hasMore = next.startsWith(`${WEBSITE}/?`) && /[?&]next=[1-9]\d*(?:&|$)/.test(next) &&
+      ![...pages].some(([index, visited]) => index <= page && visited === next);
     if (hasMore) pages.set(page + 1, next);
     return list([...comics.values()], page, !hasMore);
   }
+  function feed(key: string, page: number): Promise<ComicList> {
+    if (key === "popular") return browse(`${WEBSITE}/popular`, page);
+    const type = /^type:([0-9])$/.exec(key);
+    if (type) return browse(`${WEBSITE}/?f_cats=${1023 ^ (1 << Number(type[1]))}`, page);
+    return browse(key.startsWith("language:") ? `${WEBSITE}/?${params({ f_search: key })}` : `${WEBSITE}/`, page);
+  }
   return {
-    ...info("ehentai", "E-Hentai"), version: "1.0.1",
-    category: category("E-Hentai", [["latest", "最近更新"]]),
-    explore: [{ title: "E-Hentai · 最近更新", type: "multiPageComicList", load: page => browse("", page) }],
-    categoryComics: { load: (_name, _key, _options, page) => browse("", page) },
-    search: { load: (keyword, _options, page) => browse(keyword.trim(), page) },
+    ...info("ehentai", "E-Hentai", "1.2.5"),
+    category: category("E-Hentai", feeds),
+    explore: feeds.slice(0, 2).map(([key, title]) => ({ title: `E-Hentai · ${title}`, type: "multiPageComicList", load: page => feed(key, page) })),
+    categoryComics: { load: (_name, key, _options, page) => feed(key ?? "latest", page) },
+    search: {
+      optionList: [
+        { label: "分类", type: "multi-select", options: types.map((title, index) => `${index}-${title}`), default: types.map((_title, index) => String(index)) },
+        { label: "最低评分", type: "dropdown", options: ["-不限", "2-2", "3-3", "4-4", "5-5"] },
+        { label: "语言", type: "dropdown", options: ["-不限", ...languages.map(([id, title]) => `${id}-${title}`)] },
+      ],
+      async load(keyword, options, page) {
+        pageNumber(page);
+        const exact = galleryFromUrl(keyword.trim());
+        if (exact) return list(page === 1 ? [item(exact, await gallery(exact))] : [], page, true);
+        const query = params(searchParams(keyword.trim(), options ?? []));
+        return browse(`${WEBSITE}/${query ? `?${query}` : ""}`, page);
+      },
+    },
     comic: {
       loadInfo: async id => {
         const record = await gallery(id), entry = item(id, record);
@@ -144,6 +187,7 @@ export function createSource(): SourceConfig {
         return { url: image, headers: { Referer: viewerUrl(url) } };
       },
       onThumbnailLoad: () => ({ headers: { Referer: `${WEBSITE}/` } }),
+      link: publicLink,
     },
     account: {
       loginWithWebview: {

@@ -1,9 +1,11 @@
 import type { Site, Request, Manga } from "@archettu/manga-core";
 import { category, choice, choiceId, info, list, part, Transport, type SourceStore, type SourceConfig, type ComicItem } from "./runtime";
 
-export function createCatalog(source: SourceStore, factory: (request: Request) => Site, interval: number): SourceConfig {
+export function createCatalog(source: SourceStore, factory: (request: Request) => Site, interval: number, version: string,
+  comicFeatures?: (site: Site, request: Request) => Partial<SourceConfig["comic"]>): SourceConfig {
   const transport = new Transport(interval);
-  const site = factory((url, headers = {}, body) => transport.request(body === undefined ? "GET" : "POST", url, headers, body));
+  const request: Request = (url, headers = {}, body) => transport.request(body === undefined ? "GET" : "POST", url, headers, body);
+  const site = factory(request);
   const item = (value: Manga): ComicItem => ({ id: value.id, title: value.title, cover: value.cover || "", subtitle: value.author,
     description: value.description, tags: value.tags });
   const values = (options: string[]) => Object.fromEntries(options.flatMap((value, index) => value === "__default" || !site.filters[index] ? [] : [[site.filters[index].id, choiceId(value)]]));
@@ -12,7 +14,7 @@ export function createCatalog(source: SourceStore, factory: (request: Request) =
     return list(result.items.map(item), page, result.last, result.total, 20);
   };
   return {
-    ...info(site.id, site.name),
+    ...info(site.id, site.name, version),
     category: category(site.name, site.feeds.filter(feed => !feed.directory).map(feed => [feed.id, feed.title])),
     explore: site.feeds.map(feed => ({ title: `${site.name} · ${feed.title}`, type: feed.directory ? "multiPartPage" : "multiPageComicList",
       load: async page => {
@@ -41,6 +43,7 @@ export function createCatalog(source: SourceStore, factory: (request: Request) =
         return { images: await site.pages(id, chapter.replace(/^ep:/, "")) };
       },
       onImageLoad: () => ({ headers: site.imageHeaders() }), onThumbnailLoad: () => ({ headers: site.imageHeaders() }),
+      ...comicFeatures?.(site, request),
     },
     ...(site.login ? { account: { login: async (username: string, password: string) => { await site.login!(username, password); return true; },
       logout: () => { source.deleteData("token"); Network.deleteCookies(site.website); }, registerWebsite: "https://www.zaimanhua.com" } } : {}),
